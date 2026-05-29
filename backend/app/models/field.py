@@ -29,13 +29,13 @@ class Field(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
 
     sport_type: Mapped[SportType] = mapped_column(
-        SAEnum(SportType, name="sport_type", create_type=False),
+        SAEnum(SportType, name="sport_type", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         index=True,
     )
 
     surface_type: Mapped[SurfaceType] = mapped_column(
-        SAEnum(SurfaceType, name="surface_type", create_type=False),
+        SAEnum(SurfaceType, name="surface_type", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         index=True,
     )

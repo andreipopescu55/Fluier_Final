@@ -1,0 +1,85 @@
+"""
+Endpointuri de autentificare: register, login (email + parola), me.
+Google OAuth e separat (vezi auth_google.py — adaugat in Pasul 4).
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_db, get_current_user
+from app.core.security import create_access_token, verify_password
+from app.crud import user_crud
+from app.models.user import User
+from app.schemas.user import UserCreate, UserOut
+from app.schemas.token import Token
+
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Inregistrare cu email + parola",
+)
+def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
+    """
+    Creeaza un cont client nou.
+    Daca emailul e deja folosit, returneaza 409 Conflict.
+    """
+    existing = user_crud.get_by_email(db, payload.email)
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Emailul este deja folosit",
+        )
+
+    user = user_crud.create(db, payload)
+    return user
+
+
+@router.post(
+    "/login",
+    response_model=Token,
+    summary="Login cu email + parola, returneaza JWT",
+)
+def login(
+    # OAuth2PasswordRequestForm citeste din application/x-www-form-urlencoded
+    # cu campurile "username" si "password". E standardul OAuth2 pe care il
+    # foloseste Swagger UI cand apesi "Authorize".
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+) -> Token:
+    user = user_crud.get_by_email(db, form.username)
+
+    # Acelasi mesaj generic pentru "user inexistent" si "parola gresita":
+    # nu vrem sa-i spunem unui atacator daca emailul exista in DB sau nu.
+    auth_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Email sau parola incorecte",
+    )
+
+    if user is None or user.password_hash is None:
+        # password_hash=None inseamna ca userul s-a inregistrat doar via OAuth
+        raise auth_error
+    if not verify_password(form.password, user.password_hash):
+        raise auth_error
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cont dezactivat",
+        )
+
+    token = create_access_token(user_id=user.id, role=user.role)
+    return Token(access_token=token)
+
+
+@router.get(
+    "/me",
+    response_model=UserOut,
+    summary="Returneaza userul curent (dovada ca tokenul e valid)",
+)
+def me(current_user: User = Depends(get_current_user)) -> User:
+    """Util pentru frontend ca sa stie cine e logat dupa un refresh de pagina."""
+    return current_user

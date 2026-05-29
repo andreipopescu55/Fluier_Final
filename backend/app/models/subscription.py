@@ -31,13 +31,13 @@ class Subscription(Base):
     stripe_subscription_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
 
     plan: Mapped[SubscriptionPlan] = mapped_column(
-        SAEnum(SubscriptionPlan, name="subscription_plan", create_type=False),
+        SAEnum(SubscriptionPlan, name="subscription_plan", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         server_default=text("'basic'"),
     )
 
     status: Mapped[SubscriptionStatus] = mapped_column(
-        SAEnum(SubscriptionStatus, name="subscription_status", create_type=False),
+        SAEnum(SubscriptionStatus, name="subscription_status", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         index=True,
     )
@@ -89,7 +89,7 @@ class Payment(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default=text("'RON'"))
 
     status: Mapped[PaymentStatus] = mapped_column(
-        SAEnum(PaymentStatus, name="payment_status", create_type=False),
+        SAEnum(PaymentStatus, name="payment_status", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         index=True,
     )

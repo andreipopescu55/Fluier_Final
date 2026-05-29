@@ -42,7 +42,7 @@ class Booking(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default=text("'RON'"))
 
     status: Mapped[BookingStatus] = mapped_column(
-        SAEnum(BookingStatus, name="booking_status", create_type=False),
+        SAEnum(BookingStatus, name="booking_status", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         server_default=text("'pending'"),
         index=True,
@@ -50,7 +50,7 @@ class Booking(Base):
 
     # online = rezervat de client din app; manual = adaugat de admin direct
     booking_source: Mapped[BookingSource] = mapped_column(
-        SAEnum(BookingSource, name="booking_source", create_type=False),
+        SAEnum(BookingSource, name="booking_source", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         server_default=text("'online'"),
     )

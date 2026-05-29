@@ -22,7 +22,7 @@ class Notification(Base):
     )
 
     type: Mapped[NotificationType] = mapped_column(
-        SAEnum(NotificationType, name="notification_type", create_type=False),
+        SAEnum(NotificationType, name="notification_type", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
     )
 

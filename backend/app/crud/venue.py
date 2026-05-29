@@ -1,0 +1,133 @@
+"""
+CRUD pe Venue. Functiile primesc sesiunea SQLAlchemy si datele;
+nu cunosc FastAPI sau HTTP.
+"""
+import re
+import uuid
+from typing import Optional, Sequence
+
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.models.venue import Venue
+from app.models.enums import VenueStatus
+from app.schemas.venue import VenueCreate, VenueUpdate
+
+
+# ── Helper: slug ──────────────────────────────────────────────────────────────
+def _slugify(text: str) -> str:
+    """
+    Transforma 'Complex Sportiv Bucur Obor' -> 'complex-sportiv-bucur-obor'.
+    Simplu, nu acopera diacritice — pentru o licenta e suficient.
+    Pentru productie ar trebui o lib precum python-slugify.
+    """
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return text
+
+
+def _ensure_unique_slug(db: Session, base_slug: str) -> str:
+    """
+    Daca 'complex-sportiv-bucur' exista, returneaza 'complex-sportiv-bucur-2'.
+    Bucla la max 100 iteratii ca safety.
+    """
+    slug = base_slug
+    for i in range(2, 102):
+        existing = db.execute(select(Venue).where(Venue.slug == slug)).scalar_one_or_none()
+        if existing is None:
+            return slug
+        slug = f"{base_slug}-{i}"
+    raise RuntimeError("Nu am gasit un slug unic dupa 100 incercari")
+
+
+# ── CRUD ──────────────────────────────────────────────────────────────────────
+def get_by_id(db: Session, venue_id: uuid.UUID) -> Optional[Venue]:
+    return db.get(Venue, venue_id)
+
+
+def get_by_slug(db: Session, slug: str) -> Optional[Venue]:
+    stmt = select(Venue).where(Venue.slug == slug)
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def list_public(db: Session, *, city: Optional[str] = None,
+                limit: int = 50, offset: int = 0) -> Sequence[Venue]:
+    """
+    Lista publica — doar venue-uri 'approved'.
+    Filtru optional dupa oras.
+    """
+    stmt = select(Venue).where(Venue.status == VenueStatus.APPROVED)
+    if city:
+        # ilike = case-insensitive LIKE
+        stmt = stmt.where(Venue.city.ilike(city))
+    stmt = stmt.order_by(Venue.created_at.desc()).limit(limit).offset(offset)
+    return db.execute(stmt).scalars().all()
+
+
+def list_by_owner(db: Session, owner_id: uuid.UUID) -> Sequence[Venue]:
+    """Lista venue-urilor unui owner — include si pending/suspended."""
+    stmt = select(Venue).where(Venue.owner_id == owner_id).order_by(Venue.created_at.desc())
+    return db.execute(stmt).scalars().all()
+
+
+def create(db: Session, data: VenueCreate, owner_id: uuid.UUID) -> Venue:
+    """
+    Creeaza un venue nou.
+    - Daca slug e None, il genereaza din name.
+    - Asigura unicitatea slug-ului (append -2, -3 etc daca exista coliziune).
+    - Status implicit = 'pending' (asteapta moderare).
+    """
+    raw_slug = data.slug or _slugify(data.name)
+    final_slug = _ensure_unique_slug(db, raw_slug)
+
+    venue = Venue(
+        owner_id=owner_id,
+        name=data.name,
+        slug=final_slug,
+        description=data.description,
+        address=data.address,
+        city=data.city,
+        county=data.county,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        phone=data.phone,
+        opening_time=data.opening_time,
+        closing_time=data.closing_time,
+        # status implicit 'pending' din server_default
+    )
+    db.add(venue)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Race condition rara: doi useri creeaza acelasi slug simultan.
+        # Re-incearca cu un slug nou.
+        db.rollback()
+        venue.slug = _ensure_unique_slug(db, raw_slug)
+        db.add(venue)
+        db.commit()
+    db.refresh(venue)
+    return venue
+
+
+def update(db: Session, venue: Venue, data: VenueUpdate) -> Venue:
+    """
+    Aplica modificarile non-None din `data` pe `venue`.
+    PATCH-style: campurile None inseamna "nu schimba".
+    """
+    # model_dump(exclude_unset=True) = doar campurile pe care clientul le-a trimis.
+    # exclude_none=False ar ramane = clientul poate explicit seta un camp la null.
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(venue, field, value)
+
+    db.add(venue)
+    db.commit()
+    db.refresh(venue)
+    return venue
+
+
+def delete(db: Session, venue: Venue) -> None:
+    db.delete(venue)
+    db.commit()

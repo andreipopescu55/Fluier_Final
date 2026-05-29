@@ -27,7 +27,7 @@ class User(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     role: Mapped[UserRole] = mapped_column(
-        SAEnum(UserRole, name="user_role", create_type=False),
+        SAEnum(UserRole, name="user_role", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         server_default=text("'client'"),
     )

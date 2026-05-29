@@ -45,7 +45,7 @@ class Venue(Base):
     closing_time: Mapped[time] = mapped_column(Time, nullable=False)
 
     status: Mapped[VenueStatus] = mapped_column(
-        SAEnum(VenueStatus, name="venue_status", create_type=False),
+        SAEnum(VenueStatus, name="venue_status", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
         server_default=text("'pending'"),
         index=True,
