@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prototip 1 — Aurora (Modern Minimal)</title>
+
+  <!-- Tailwind CSS via CDN (fara build) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FullCalendar via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'] },
+          colors: {
+            brand: { 50:'#eef2ff',100:'#e0e7ff',500:'#6366f1',600:'#4f46e5',700:'#4338ca' },
+            mint:  { 50:'#ecfdf5',100:'#d1fae5',500:'#10b981',600:'#059669' },
+          },
+          boxShadow: { soft: '0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06)' },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; }
+    .fc { --fc-border-color:#e2e8f0; --fc-today-bg-color:#eef2ff; --fc-now-indicator-color:#4f46e5; font-size:.8rem; }
+    .fc .fc-toolbar-title { font-size:1.05rem; font-weight:700; color:#1e293b; }
+    .fc .fc-button { background:#4f46e5; border:none; font-weight:600; text-transform:capitalize; }
+    .fc .fc-button:hover { background:#4338ca; }
+    .fc .fc-button-primary:disabled { background:#c7d2fe; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+
+  <!-- NAV -->
+  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 rounded-xl bg-brand-600 text-white grid place-items-center font-extrabold">R</div>
+        <span class="font-extrabold text-lg tracking-tight">RezervăTeren</span>
+        <span class="ml-2 text-[10px] uppercase tracking-widest text-brand-600 bg-brand-50 px-2 py-1 rounded-full font-semibold">Aurora</span>
+      </div>
+      <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-sm font-semibold">
+        <button onclick="show('public')"  data-tab="public"  class="tab px-4 py-2 rounded-lg transition">Acasă</button>
+        <button onclick="show('booking')" data-tab="booking" class="tab px-4 py-2 rounded-lg transition">Rezervă</button>
+        <button onclick="show('admin')"   data-tab="admin"   class="tab px-4 py-2 rounded-lg transition">Admin</button>
+      </nav>
+      <button class="hidden sm:inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-soft">Cont</button>
+    </div>
+  </header>
+
+  <!-- ============ PUBLIC / LANDING ============ -->
+  <section id="public" class="view">
+    <!-- HERO -->
+    <div class="bg-gradient-to-b from-brand-50 to-slate-50">
+      <div class="max-w-7xl mx-auto px-5 py-16 text-center">
+        <span class="inline-block text-xs font-semibold text-brand-700 bg-white border border-brand-100 px-3 py-1 rounded-full shadow-soft">⚽ 120+ terenuri în 14 orașe</span>
+        <h1 class="mt-5 text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">Găsește și rezervă <span class="text-brand-600">terenul perfect</span></h1>
+        <p class="mt-4 text-slate-500 max-w-xl mx-auto">Fotbal, tenis, baschet — verifică disponibilitatea în timp real și rezervă în câteva secunde.</p>
+
+        <!-- SEARCH -->
+        <div class="mt-8 max-w-3xl mx-auto bg-white rounded-2xl shadow-soft border border-slate-200 p-2 flex flex-col sm:flex-row gap-2">
+          <div class="flex-1 flex items-center gap-2 px-3">
+            <span class="text-slate-400">📍</span>
+            <input class="w-full py-3 outline-none text-sm" placeholder="Oraș (ex: București)" />
+          </div>
+          <div class="flex-1 flex items-center gap-2 px-3 border-t sm:border-t-0 sm:border-l border-slate-200">
+            <span class="text-slate-400">🏟️</span>
+            <select class="w-full py-3 outline-none text-sm bg-transparent text-slate-500">
+              <option>Toate sporturile</option><option>Fotbal</option><option>Tenis</option><option>Baschet</option>
+            </select>
+          </div>
+          <button class="bg-brand-600 hover:bg-brand-700 text-white font-semibold px-7 py-3 rounded-xl shadow-soft">Caută</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VENUE GRID -->
+    <div class="max-w-7xl mx-auto px-5 py-12">
+      <div class="flex items-end justify-between mb-6">
+        <h2 class="text-xl font-extrabold text-slate-900">Baze sportive recomandate</h2>
+        <a class="text-sm font-semibold text-brand-600">Vezi toate →</a>
+      </div>
+      <div id="venueGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+    </div>
+  </section>
+
+  <!-- ============ BOOKING ============ -->
+  <section id="booking" class="view hidden">
+    <div class="max-w-6xl mx-auto px-5 py-8">
+      <nav class="text-sm text-slate-400 mb-4">Acasă / Soccer Park București / <span class="text-slate-700 font-semibold">Terenul 1</span></nav>
+
+      <div class="grid lg:grid-cols-3 gap-6">
+        <!-- LEFT: field + slots -->
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-white rounded-2xl shadow-soft border border-slate-200 overflow-hidden">
+            <div class="h-44 bg-gradient-to-r from-brand-500 to-mint-500"></div>
+            <div class="p-5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h1 class="text-2xl font-extrabold text-slate-900">Terenul 1 — Fotbal 5x5</h1>
+                  <p class="text-slate-500 text-sm mt-1">Soccer Park București · Iarbă sintetică · Acoperit</p>
+                </div>
+                <span class="text-xs font-semibold text-mint-600 bg-mint-50 px-3 py-1 rounded-full">● Disponibil azi</span>
+              </div>
+              <div class="flex flex-wrap gap-2 mt-4 text-xs">
+                <span class="bg-slate-100 px-3 py-1.5 rounded-lg">🚿 Vestiare</span>
+                <span class="bg-slate-100 px-3 py-1.5 rounded-lg">🅿️ Parcare</span>
+                <span class="bg-slate-100 px-3 py-1.5 rounded-lg">💡 Nocturnă</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow-soft border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-bold text-slate-900">Alege intervalul</h3>
+              <div class="flex gap-2 text-sm">
+                <button class="day-chip px-3 py-1.5 rounded-lg border border-slate-200 font-semibold" data-on>Lun 01</button>
+                <button class="day-chip px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500">Mar 02</button>
+                <button class="day-chip px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500">Mie 03</button>
+              </div>
+            </div>
+            <div id="slotGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-2"></div>
+            <div class="flex items-center gap-4 mt-4 text-xs text-slate-500">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-white border border-slate-300"></span> Liber</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-brand-600"></span> Selectat</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-200"></span> Ocupat</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: summary -->
+        <div class="space-y-4">
+          <div class="bg-white rounded-2xl shadow-soft border border-slate-200 p-5 sticky top-20">
+            <h3 class="font-bold text-slate-900">Rezervarea ta</h3>
+            <div class="mt-4 space-y-3 text-sm">
+              <div class="flex justify-between"><span class="text-slate-500">Data</span><span class="font-semibold">Luni, 1 Iun</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Interval</span><span id="sumInterval" class="font-semibold">18:00 – 19:00</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Durată</span><span id="sumDur" class="font-semibold">1 oră</span></div>
+              <hr class="border-slate-100" />
+              <div class="flex justify-between text-base"><span class="font-semibold">Total</span><span id="sumPrice" class="font-extrabold text-brand-600">100 RON</span></div>
+            </div>
+            <button class="mt-5 w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3 rounded-xl shadow-soft">Confirmă rezervarea</button>
+            <p class="text-[11px] text-slate-400 text-center mt-3">Plata se face la fața locului sau online.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <section id="admin" class="view hidden">
+    <div class="max-w-7xl mx-auto px-5 py-8 grid lg:grid-cols-[220px_1fr] gap-6">
+      <!-- SIDEBAR -->
+      <aside class="space-y-1 text-sm font-semibold">
+        <div class="text-xs uppercase tracking-widest text-slate-400 px-3 mb-2">Administrare</div>
+        <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-50 text-brand-700">📊 Dashboard</a>
+        <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100">🏟️ Terenuri</a>
+        <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100">📅 Calendar</a>
+        <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100">💶 Prețuri</a>
+        <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100">⚙️ Setări</a>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-extrabold text-slate-900">Bună, Andrei 👋</h1>
+            <p class="text-slate-500 text-sm">Soccer Park București · 3 terenuri active</p>
+          </div>
+          <button class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-soft">+ Blochează interval</button>
+        </div>
+
+        <!-- KPI -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white rounded-2xl shadow-soft border border-slate-200 p-4">
+            <p class="text-xs text-slate-500">Rezervări azi</p><p class="text-2xl font-extrabold mt-1">12</p><p class="text-xs text-mint-600 mt-1">▲ 8%</p>
+          </div>
+          <div class="bg-white rounded-2xl shadow-soft border border-slate-200 p-4">
+            <p class="text-xs text-slate-500">Venit săptămână</p><p class="text-2xl font-extrabold mt-1">4.250 RON</p><p class="text-xs text-mint-600 mt-1">▲ 14%</p>
+          </div>
+          <div class="bg-white rounded-2xl shadow-soft border border-slate-200 p-4">
+            <p class="text-xs text-slate-500">Grad ocupare</p><p class="text-2xl font-extrabold mt-1">73%</p><p class="text-xs text-slate-400 mt-1">orele de vârf</p>
+          </div>
+          <div class="bg-white rounded-2xl shadow-soft border border-slate-200 p-4">
+            <p class="text-xs text-slate-500">În așteptare</p><p class="text-2xl font-extrabold mt-1">3</p><p class="text-xs text-amber-500 mt-1">necesită confirmare</p>
+          </div>
+        </div>
+
+        <!-- CALENDAR -->
+        <div class="bg-white rounded-2xl shadow-soft border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-slate-900">Calendar — Terenul 1</h3>
+            <div class="flex items-center gap-3 text-xs text-slate-500">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-amber-500"></span> În așteptare</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-mint-500"></span> Confirmat</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-400"></span> Blocat</span>
+            </div>
+          </div>
+          <div id="calendar"></div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <footer class="border-t border-slate-200 mt-10">
+    <div class="max-w-7xl mx-auto px-5 py-8 text-sm text-slate-400 flex flex-col sm:flex-row justify-between gap-2">
+      <span>© 2026 RezervăTeren · Prototip „Aurora"</span>
+      <span>Licență — Sistem de rezervare terenuri sportive</span>
+    </div>
+  </footer>
+
+  <script>
+    // ---- Navigare intre sectiuni ----
+    function show(id){
+      document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== id));
+      document.querySelectorAll('.tab').forEach(t => {
+        const on = t.dataset.tab === id;
+        t.classList.toggle('bg-white', on); t.classList.toggle('shadow-soft', on);
+        t.classList.toggle('text-brand-700', on); t.classList.toggle('text-slate-500', !on);
+      });
+      if(id==='admin') setTimeout(()=>cal && cal.updateSize(), 50);
+      window.scrollTo({top:0});
+    }
+
+    // ---- Date demo: baze sportive ----
+    const venues = [
+      {n:'Soccer Park București', c:'București', s:'Fotbal 5x5 · 7x7', p:90, t:'⚽', img:'from-emerald-400 to-teal-500'},
+      {n:'Tennis Club Arena', c:'Cluj-Napoca', s:'Tenis · zgură', p:70, t:'🎾', img:'from-orange-400 to-rose-500'},
+      {n:'Hoops Center', c:'Timișoara', s:'Baschet · parchet', p:120, t:'🏀', img:'from-indigo-400 to-violet-500'},
+      {n:'Green Field', c:'Iași', s:'Fotbal 7x7', p:110, t:'⚽', img:'from-lime-400 to-emerald-500'},
+      {n:'Volley House', c:'Brașov', s:'Volei · indoor', p:80, t:'🏐', img:'from-sky-400 to-blue-500'},
+      {n:'Padel Point', c:'Constanța', s:'Padel · 2 terenuri', p:100, t:'🥎', img:'from-fuchsia-400 to-pink-500'},
+    ];
+    document.getElementById('venueGrid').innerHTML = venues.map(v => `
+      <div class="bg-white rounded-2xl shadow-soft border border-slate-200 overflow-hidden hover:-translate-y-1 transition cursor-pointer" onclick="show('booking')">
+        <div class="h-36 bg-gradient-to-br ${v.img} grid place-items-center text-4xl">${v.t}</div>
+        <div class="p-4">
+          <div class="flex justify-between items-start">
+            <h3 class="font-bold text-slate-900">${v.n}</h3>
+            <span class="text-xs text-slate-400">📍 ${v.c}</span>
+          </div>
+          <p class="text-sm text-slate-500 mt-1">${v.s}</p>
+          <div class="flex items-center justify-between mt-4">
+            <span class="text-brand-600 font-extrabold">${v.p} RON<span class="text-xs text-slate-400 font-normal">/oră</span></span>
+            <span class="text-sm font-semibold text-brand-600">Rezervă →</span>
+          </div>
+        </div>
+      </div>`).join('');
+
+    // ---- Sloturi demo ----
+    const slots = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+    const taken = ['10:00','13:00','17:00','20:00'];
+    let selected = '18:00';
+    function renderSlots(){
+      document.getElementById('slotGrid').innerHTML = slots.map(s => {
+        if(taken.includes(s)) return `<button disabled class="py-2.5 rounded-xl bg-slate-100 text-slate-300 text-sm font-semibold cursor-not-allowed line-through">${s}</button>`;
+        const on = s===selected;
+        return `<button onclick="pick('${s}')" class="py-2.5 rounded-xl text-sm font-semibold border transition ${on?'bg-brand-600 text-white border-brand-600 shadow-soft':'bg-white border-slate-200 hover:border-brand-400'}">${s}</button>`;
+      }).join('');
+    }
+    function pick(s){
+      selected = s; renderSlots();
+      const end = String(parseInt(s)+1).padStart(2,'0')+':00';
+      document.getElementById('sumInterval').textContent = `${s} – ${end}`;
+    }
+    renderSlots();
+
+    // ---- FullCalendar (admin) ----
+    let cal;
+    document.addEventListener('DOMContentLoaded', () => {
+      cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
+        initialView:'timeGridWeek', initialDate:'2026-06-01', locale:'ro',
+        slotMinTime:'08:00', slotMaxTime:'23:00', allDaySlot:false, height:560,
+        headerToolbar:{left:'prev,next today',center:'title',right:'timeGridWeek,timeGridDay'},
+        events:[
+          {title:'Rezervare — Ion P.', start:'2026-06-01T18:00', end:'2026-06-01T19:30', color:'#f59e0b'},
+          {title:'Rezervare — Maria D.', start:'2026-06-01T19:30', end:'2026-06-01T20:30', color:'#10b981'},
+          {title:'Blocat: întreținere', start:'2026-06-01T20:30', end:'2026-06-01T21:30', color:'#94a3b8'},
+          {title:'Rezervare — Andrei', start:'2026-06-02T17:00', end:'2026-06-02T18:00', color:'#10b981'},
+          {title:'Rezervare — echipa FC', start:'2026-06-03T20:00', end:'2026-06-03T22:00', color:'#f59e0b'},
+          {title:'Blocat: eveniment', start:'2026-06-04T16:00', end:'2026-06-04T19:00', color:'#94a3b8'},
+        ],
+      });
+      cal.render();
+    });
+
+    show('public');
+  </script>
+</body>
+</html>

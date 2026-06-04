@@ -59,3 +59,25 @@ class BookingManualBlock(BaseModel):
         if self.start_time >= self.end_time:
             raise ValueError("start_time trebuie sa fie inainte de end_time")
         return self
+
+
+# ── Calendar (format FullCalendar) ──────────────────────────────────────────────
+class CalendarEventProps(BaseModel):
+    # extendedProps — campuri proprii pe care le citeste frontend-ul (ex: la click pe eveniment).
+    status: BookingStatus
+    source: BookingSource
+    total_price: Decimal
+    currency: str
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CalendarEvent(BaseModel):
+    """Un eveniment in formatul asteptat de biblioteca FullCalendar."""
+    id: uuid.UUID
+    title: str
+    start: datetime
+    end: datetime
+    color: str  # culoare in functie de status (pending/confirmed/blocat)
+    extendedProps: CalendarEventProps
