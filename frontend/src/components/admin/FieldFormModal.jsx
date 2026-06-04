@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { createField, updateField } from '../../api/resources'
-import { SPORT_LABELS, SURFACE_LABELS } from '../../lib/labels'
+import { SPORT_LABELS, SURFACE_LABELS, SPORT_BY_LABEL } from '../../lib/labels'
 
-const SPORT_OPTIONS = Object.entries(SPORT_LABELS)
 const SURFACE_OPTIONS = Object.entries(SURFACE_LABELS)
+const FORMAT_SUGGESTIONS = Object.keys(SPORT_BY_LABEL) // Fotbal 5+1 / 7+1 / 11+1
 
 // Valori posibile pentru durate (in minute). Slotul trebuie sa dividă min_booking.
 const SLOT_OPTIONS = [15, 30, 60]
@@ -13,7 +13,9 @@ export default function FieldFormModal({ venueId, field, onClose, onSaved }) {
   const isEdit = Boolean(field)
   const [form, setForm] = useState({
     name: field?.name ?? '',
-    sport_type: field?.sport_type ?? 'football_5',
+    // Recomandare libera; pentru terenuri existente fara recomandare, pornim de la
+    // eticheta structurata curenta ca sa nu para gol la editare.
+    recommended_format: field?.recommended_format ?? (field ? (SPORT_LABELS[field.sport_type] ?? '') : ''),
     surface_type: field?.surface_type ?? 'synthetic_grass',
     is_indoor: field?.is_indoor ?? false,
     slot_duration_minutes: field?.slot_duration_minutes ?? 30,
@@ -37,9 +39,13 @@ export default function FieldFormModal({ venueId, field, onClose, onSaved }) {
       return
     }
 
+    const rec = form.recommended_format.trim()
     const payload = {
       name: form.name.trim(),
-      sport_type: form.sport_type,
+      // recomandarea libera (poate fi goala); sport_type = categoria derivata,
+      // standard daca recomandarea e una cunoscuta, altfel implicit Fotbal 5+1.
+      recommended_format: rec || null,
+      sport_type: SPORT_BY_LABEL[rec] ?? 'football_5',
       surface_type: form.surface_type,
       is_indoor: form.is_indoor,
       slot_duration_minutes: Number(form.slot_duration_minutes),
@@ -91,13 +97,29 @@ export default function FieldFormModal({ venueId, field, onClose, onSaved }) {
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Sport">
-            <Select value={form.sport_type} onChange={(v) => set('sport_type', v)} options={SPORT_OPTIONS} />
+          <Field label="Format recomandat (opțional)">
+            <input
+              type="text"
+              list="format-suggestions"
+              value={form.recommended_format}
+              onChange={(e) => set('recommended_format', e.target.value)}
+              placeholder="ex: 5+1"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+            <datalist id="format-suggestions">
+              {FORMAT_SUGGESTIONS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
           </Field>
           <Field label="Suprafață">
             <Select value={form.surface_type} onChange={(v) => set('surface_type', v)} options={SURFACE_OPTIONS} />
           </Field>
         </div>
+        <p className="-mt-2 text-xs text-slate-400">
+          Recomandare pentru jucători (ex: „5+1" = 5 + portar). Poți alege o sugestie,
+          tasta liber sau lăsa gol.
+        </p>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Durată slot (min)">

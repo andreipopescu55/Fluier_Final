@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { listMyBookings, cancelBooking, getField } from '../api/resources'
-import { BOOKING_STATUS, SPORT_LABELS } from '../lib/labels'
+import { BOOKING_STATUS, fieldFormat } from '../lib/labels'
 import { formatDateTimeRo } from '../lib/booking'
 
 // Doar ora ("18:00") dintr-un datetime ISO al backend-ului.
@@ -86,8 +86,8 @@ export default function MyBookingsPage() {
   function fieldLabel(fieldId) {
     const f = fields[fieldId]
     if (!f) return 'Teren'
-    const sport = SPORT_LABELS[f.sport_type] ?? f.sport_type
-    return `${f.name} · ${sport}`
+    const fmt = fieldFormat(f)
+    return fmt ? `${f.name} · ${fmt}` : f.name
   }
 
   function renderCard(b) {

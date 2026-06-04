@@ -1,20 +1,29 @@
 // Traduceri prietenoase pentru valorile enum din backend.
 
+// Aplicatia e dedicata fotbalului. Formatul "X+1" = X jucatori de camp + portar.
 export const SPORT_LABELS = {
-  football_5: 'Fotbal 5',
-  football_7: 'Fotbal 7',
-  football_11: 'Fotbal 11',
-  tennis: 'Tenis',
-  basketball: 'Baschet',
-  volleyball: 'Volei',
+  football_5: 'Fotbal 5+1',
+  football_7: 'Fotbal 7+1',
+  football_11: 'Fotbal 11+1',
 }
 
 export const SURFACE_LABELS = {
   synthetic_grass: 'Gazon sintetic',
   natural_grass: 'Gazon natural',
-  clay: 'Zgură',
-  hard_court: 'Suprafață dură',
-  parquet: 'Parchet',
+}
+
+// Reverse: eticheta -> valoare enum. Folosit ca sa derivam sport_type (categoria
+// structurata, pentru filtrare) din recomandarea libera, cand aceasta e standard.
+export const SPORT_BY_LABEL = {
+  'Fotbal 5+1': 'football_5',
+  'Fotbal 7+1': 'football_7',
+  'Fotbal 11+1': 'football_11',
+}
+
+// Formatul afisat al unui teren: recomandarea libera daca exista, altfel eticheta
+// structurata derivata din sport_type.
+export function fieldFormat(f) {
+  return f?.recommended_format || SPORT_LABELS[f?.sport_type] || ''
 }
 
 // status -> { eticheta, clase Tailwind pentru "badge" }

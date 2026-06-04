@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { listMyVenues, listVenueFieldsManage, deleteField } from '../api/resources'
-import { SPORT_LABELS, SURFACE_LABELS } from '../lib/labels'
+import { SURFACE_LABELS, fieldFormat } from '../lib/labels'
 import CalendarPanel from '../components/admin/CalendarPanel'
 import PricingPanel from '../components/admin/PricingPanel'
 import FieldFormModal from '../components/admin/FieldFormModal'
@@ -232,7 +232,7 @@ export default function AdminPage() {
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">{selectedField.name}</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      {SPORT_LABELS[selectedField.sport_type] ?? selectedField.sport_type} ·{' '}
+                      {fieldFormat(selectedField)} ·{' '}
                       {SURFACE_LABELS[selectedField.surface_type] ?? selectedField.surface_type} ·{' '}
                       {selectedField.is_indoor ? 'Acoperit' : 'În aer liber'} · slot{' '}
                       {selectedField.slot_duration_minutes} min · minim{' '}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getVenue, listVenueFields } from '../api/resources'
-import { SPORT_LABELS, SURFACE_LABELS } from '../lib/labels'
+import { SURFACE_LABELS, fieldFormat } from '../lib/labels'
 
 // Afiseaza ora fara secunde: "08:00:00" -> "08:00"
 function hhmm(t) {
@@ -70,7 +70,7 @@ export default function VenuePage() {
               <h3 className="text-lg font-bold text-slate-900">{f.name}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
-                  {SPORT_LABELS[f.sport_type] ?? f.sport_type}
+                  {fieldFormat(f)}
                 </span>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                   {SURFACE_LABELS[f.surface_type] ?? f.surface_type}

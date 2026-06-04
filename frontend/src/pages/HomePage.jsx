@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listVenues } from '../api/resources'
 import { useAuth } from '../auth/AuthContext'
-import { SPORT_LABELS } from '../lib/labels'
+import { SPORT_BY_LABEL } from '../lib/labels'
 
-const SPORT_OPTIONS = Object.entries(SPORT_LABELS)
+const FORMAT_SUGGESTIONS = Object.keys(SPORT_BY_LABEL) // Fotbal 5+1 / 7+1 / 11+1
 
 export default function HomePage() {
   const { user } = useAuth()
@@ -15,15 +15,20 @@ export default function HomePage() {
 
   // Filtre
   const [q, setQ] = useState('')
-  const [sport, setSport] = useState('')
+  const [format, setFormat] = useState('')
   const [city, setCity] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
+  const [debouncedFormat, setDebouncedFormat] = useState('')
 
-  // Debounce pe căutarea text (evităm un request la fiecare tastă).
+  // Debounce pe câmpurile text (evităm un request la fiecare tastă).
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300)
     return () => clearTimeout(t)
   }, [q])
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFormat(format), 300)
+    return () => clearTimeout(t)
+  }, [format])
 
   // Lista de orașe pentru dropdown — o luăm o singură dată (toate bazele).
   useEffect(() => {
@@ -43,7 +48,7 @@ export default function HomePage() {
     setError(null)
     const params = {}
     if (debouncedQ.trim()) params.q = debouncedQ.trim()
-    if (sport) params.sport = sport
+    if (debouncedFormat.trim()) params.format = debouncedFormat.trim()
     if (city) params.city = city
     listVenues(params)
       .then((data) => active && setVenues(data))
@@ -52,13 +57,13 @@ export default function HomePage() {
     return () => {
       active = false
     }
-  }, [debouncedQ, sport, city])
+  }, [debouncedQ, debouncedFormat, city])
 
-  const hasFilters = Boolean(q || sport || city)
+  const hasFilters = Boolean(q || format || city)
 
   function resetFilters() {
     setQ('')
-    setSport('')
+    setFormat('')
     setCity('')
   }
 
@@ -89,18 +94,19 @@ export default function HomePage() {
             placeholder="Caută după nume, oraș sau județ…"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
           />
-          <select
-            value={sport}
-            onChange={(e) => setSport(e.target.value)}
+          <input
+            type="text"
+            list="format-filter-suggestions"
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+            placeholder="Format (ex: 5+1)"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          >
-            <option value="">Toate sporturile</option>
-            {SPORT_OPTIONS.map(([val, label]) => (
-              <option key={val} value={val}>
-                {label}
-              </option>
+          />
+          <datalist id="format-filter-suggestions">
+            {FORMAT_SUGGESTIONS.map((s) => (
+              <option key={s} value={s} />
             ))}
-          </select>
+          </datalist>
           <select
             value={city}
             onChange={(e) => setCity(e.target.value)}
