@@ -36,6 +36,7 @@ def create_field(db: Session, venue_id: uuid.UUID, data: FieldCreate) -> Field:
         venue_id=venue_id,
         name=data.name,
         sport_type=data.sport_type,
+        recommended_format=data.recommended_format,
         surface_type=data.surface_type,
         is_indoor=data.is_indoor,
         min_booking_minutes=data.min_booking_minutes,

@@ -37,6 +37,8 @@ class PricingRuleOut(PricingRuleBase):
 class FieldBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     sport_type: SportType
+    # Recomandare de format aleasa liber de admin (optionala, doar informativa).
+    recommended_format: Optional[str] = Field(None, max_length=60)
     surface_type: SurfaceType
     is_indoor: bool = False
 
@@ -65,6 +67,7 @@ class FieldCreate(FieldBase):
 class FieldUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     sport_type: Optional[SportType] = None
+    recommended_format: Optional[str] = Field(None, max_length=60)
     surface_type: Optional[SurfaceType] = None
     is_indoor: Optional[bool] = None
     min_booking_minutes: Optional[int] = Field(None, ge=15, le=1440)

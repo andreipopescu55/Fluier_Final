@@ -6,7 +6,7 @@ import re
 import uuid
 from typing import Optional, Sequence
 
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -53,9 +53,20 @@ def get_by_slug(db: Session, slug: str) -> Optional[Venue]:
     return db.execute(stmt).scalar_one_or_none()
 
 
+def _sport_from_text(text: str) -> Optional[SportType]:
+    """Deduce categoria structurata dintr-un format liber ('5+1' -> football_5)."""
+    if "11" in text:
+        return SportType.FOOTBALL_11
+    if "7" in text:
+        return SportType.FOOTBALL_7
+    if "5" in text:
+        return SportType.FOOTBALL_5
+    return None
+
+
 def list_public(db: Session, *, q: Optional[str] = None,
                 city: Optional[str] = None, county: Optional[str] = None,
-                sport: Optional[SportType] = None,
+                sport: Optional[SportType] = None, fmt: Optional[str] = None,
                 limit: int = 50, offset: int = 0) -> Sequence[Venue]:
     """
     Lista publica — doar venue-uri 'approved'.
@@ -68,9 +79,15 @@ def list_public(db: Session, *, q: Optional[str] = None,
     stmt = select(Venue).where(Venue.status == VenueStatus.APPROVED)
 
     if q:
-        like = f"%{q}%"
+        # unaccent(...) ILIKE unaccent(...) = cautare fara diacritice SI case-insensitive
+        # ("iasi" gaseste "Iași", "BRASOV" gaseste "Brașov" etc.)
+        pattern = func.unaccent(f"%{q}%")
         stmt = stmt.where(
-            or_(Venue.name.ilike(like), Venue.city.ilike(like), Venue.county.ilike(like))
+            or_(
+                func.unaccent(Venue.name).ilike(pattern),
+                func.unaccent(Venue.city).ilike(pattern),
+                func.unaccent(Venue.county).ilike(pattern),
+            )
         )
     if city:
         stmt = stmt.where(Venue.city.ilike(city))
@@ -81,6 +98,15 @@ def list_public(db: Session, *, q: Optional[str] = None,
         venue_ids = select(Field.venue_id).where(
             Field.sport_type == sport, Field.is_active.is_(True)
         )
+        stmt = stmt.where(Venue.id.in_(venue_ids))
+    if fmt:
+        # Format liber: cauta in recomandarea terenului SAU in categoria derivata.
+        fmt = fmt.strip()
+        conds = [func.unaccent(Field.recommended_format).ilike(func.unaccent(f"%{fmt}%"))]
+        sport_match = _sport_from_text(fmt)
+        if sport_match is not None:
+            conds.append(Field.sport_type == sport_match)
+        venue_ids = select(Field.venue_id).where(Field.is_active.is_(True), or_(*conds))
         stmt = stmt.where(Venue.id.in_(venue_ids))
 
     stmt = stmt.order_by(Venue.created_at.desc()).limit(limit).offset(offset)

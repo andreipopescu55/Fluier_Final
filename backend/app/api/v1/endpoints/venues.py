@@ -58,6 +58,7 @@ def list_venues(
     city: Optional[str] = Query(None, description="Filtru dupa oras"),
     county: Optional[str] = Query(None, description="Filtru dupa judet"),
     sport: Optional[SportType] = Query(None, description="Doar baze cu teren activ de acest sport"),
+    format: Optional[str] = Query(None, description="Format liber ('5+1', 'Fotbal 7+1') — recomandare sau categorie"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -67,7 +68,7 @@ def list_venues(
     Returneaza doar venue-uri cu status='approved', cu filtre optionale.
     """
     return venue_crud.list_public(
-        db, q=q, city=city, county=county, sport=sport, limit=limit, offset=offset
+        db, q=q, city=city, county=county, sport=sport, fmt=format, limit=limit, offset=offset
     )
 
 

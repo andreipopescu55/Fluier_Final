@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, time
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import (
     String, Boolean, Integer, Numeric, Time,
@@ -33,6 +33,11 @@ class Field(Base):
         nullable=False,
         index=True,
     )
+
+    # Recomandare de format aleasa liber de admin (ex: "5+1", "6+1", "ideal 7 jucatori").
+    # Optionala si pur informativa — afisata clientilor. sport_type ramane categoria
+    # structurata (folosita la filtrare), derivata din recomandare cand e standard.
+    recommended_format: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
 
     surface_type: Mapped[SurfaceType] = mapped_column(
         SAEnum(SurfaceType, name="surface_type", create_type=False, values_callable=lambda e: [v.value for v in e]),
