@@ -62,6 +62,11 @@ class VenueUpdate(BaseModel):
     closing_time: Optional[time] = None
 
 
+class VenueStatusUpdate(BaseModel):
+    # Folosit DOAR de super_admin pentru moderare (aprobare/suspendare).
+    status: VenueStatus
+
+
 class VenueOut(VenueBase):
     model_config = ConfigDict(from_attributes=True)
 

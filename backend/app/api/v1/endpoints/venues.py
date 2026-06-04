@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_current_user, require_role
 from app.crud import venue_crud
 from app.models.user import User
-from app.models.enums import UserRole, VenueStatus
+from app.models.enums import UserRole, VenueStatus, SportType
 from app.models.venue import Venue
 from app.schemas.venue import VenueCreate, VenueUpdate, VenueOut, VenueListItem
 
@@ -51,19 +51,24 @@ def _get_venue_for_admin(
 @router.get(
     "",
     response_model=list[VenueListItem],
-    summary="Lista publica de baze sportive aprobate",
+    summary="Lista publica de baze sportive aprobate (cu cautare/filtrare)",
 )
 def list_venues(
-    city: Optional[str] = Query(None, description="Filtru optional dupa oras"),
+    q: Optional[str] = Query(None, description="Cautare in nume/oras/judet"),
+    city: Optional[str] = Query(None, description="Filtru dupa oras"),
+    county: Optional[str] = Query(None, description="Filtru dupa judet"),
+    sport: Optional[SportType] = Query(None, description="Doar baze cu teren activ de acest sport"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     """
     Endpoint public — nu cere auth.
-    Returneaza doar venue-uri cu status='approved'.
+    Returneaza doar venue-uri cu status='approved', cu filtre optionale.
     """
-    return venue_crud.list_public(db, city=city, limit=limit, offset=offset)
+    return venue_crud.list_public(
+        db, q=q, city=city, county=county, sport=sport, limit=limit, offset=offset
+    )
 
 
 @router.get(

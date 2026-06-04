@@ -132,3 +132,6 @@ redis_data/
 *.orig
 .cache/
 /.claude
+
+# Scripturi demo/seed temporare (one-off, nu fac parte din aplicatie)
+_demo_*.py

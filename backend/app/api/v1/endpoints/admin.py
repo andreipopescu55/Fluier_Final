@@ -22,10 +22,11 @@ from app.crud.booking import BookingConflictError, ensure_tz, LOCAL_TZ
 from app.models.user import User
 from app.models.field import Field
 from app.models.booking import Booking
-from app.models.enums import UserRole, BookingStatus, BookingSource
+from app.models.enums import UserRole, BookingStatus, BookingSource, VenueStatus
 from app.schemas.booking import (
     BookingOut, BookingManualBlock, CalendarEvent, CalendarEventProps,
 )
+from app.schemas.venue import VenueOut, VenueStatusUpdate
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -157,3 +158,34 @@ def block_field_interval(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
     return booking
+
+
+# ── Moderare baze (DOAR super_admin) ───────────────────────────────────────────────
+@router.get(
+    "/venues",
+    response_model=list[VenueOut],
+    summary="Toate bazele sportive (moderare super_admin)",
+)
+def list_all_venues(
+    status_filter: VenueStatus | None = Query(None, alias="status", description="Filtru optional dupa status"),
+    current_user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    return venue_crud.list_all(db, status=status_filter)
+
+
+@router.patch(
+    "/venues/{venue_id}/status",
+    response_model=VenueOut,
+    summary="Schimba statusul unei baze: approve / suspend (super_admin)",
+)
+def set_venue_status(
+    venue_id: uuid.UUID,
+    payload: VenueStatusUpdate,
+    current_user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    venue = venue_crud.get_by_id(db, venue_id)
+    if venue is None:
+        raise HTTPException(status_code=404, detail="Venue inexistent")
+    return venue_crud.set_status(db, venue, payload.status)

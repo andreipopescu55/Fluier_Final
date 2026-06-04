@@ -6,12 +6,13 @@ import re
 import uuid
 from typing import Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.venue import Venue
-from app.models.enums import VenueStatus
+from app.models.field import Field
+from app.models.enums import VenueStatus, SportType
 from app.schemas.venue import VenueCreate, VenueUpdate
 
 
@@ -52,16 +53,36 @@ def get_by_slug(db: Session, slug: str) -> Optional[Venue]:
     return db.execute(stmt).scalar_one_or_none()
 
 
-def list_public(db: Session, *, city: Optional[str] = None,
+def list_public(db: Session, *, q: Optional[str] = None,
+                city: Optional[str] = None, county: Optional[str] = None,
+                sport: Optional[SportType] = None,
                 limit: int = 50, offset: int = 0) -> Sequence[Venue]:
     """
     Lista publica — doar venue-uri 'approved'.
-    Filtru optional dupa oras.
+    Filtre optionale:
+      - q     : text liber, cauta in nume/oras/judet (case-insensitive)
+      - city  : oras exact (case-insensitive)
+      - county: judet exact (case-insensitive)
+      - sport : doar baze care au cel putin un teren ACTIV de acel sport
     """
     stmt = select(Venue).where(Venue.status == VenueStatus.APPROVED)
+
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(Venue.name.ilike(like), Venue.city.ilike(like), Venue.county.ilike(like))
+        )
     if city:
-        # ilike = case-insensitive LIKE
         stmt = stmt.where(Venue.city.ilike(city))
+    if county:
+        stmt = stmt.where(Venue.county.ilike(county))
+    if sport is not None:
+        # Sub-query: id-urile bazelor care au un teren activ de tipul cerut.
+        venue_ids = select(Field.venue_id).where(
+            Field.sport_type == sport, Field.is_active.is_(True)
+        )
+        stmt = stmt.where(Venue.id.in_(venue_ids))
+
     stmt = stmt.order_by(Venue.created_at.desc()).limit(limit).offset(offset)
     return db.execute(stmt).scalars().all()
 
@@ -70,6 +91,25 @@ def list_by_owner(db: Session, owner_id: uuid.UUID) -> Sequence[Venue]:
     """Lista venue-urilor unui owner — include si pending/suspended."""
     stmt = select(Venue).where(Venue.owner_id == owner_id).order_by(Venue.created_at.desc())
     return db.execute(stmt).scalars().all()
+
+
+def list_all(db: Session, *, status: Optional[VenueStatus] = None) -> Sequence[Venue]:
+    """TOATE bazele (pentru moderare super_admin), filtru optional dupa status."""
+    stmt = select(Venue)
+    if status is not None:
+        stmt = stmt.where(Venue.status == status)
+    # pending-urile primele (asteapta moderare), apoi cele mai noi.
+    stmt = stmt.order_by(Venue.status.asc(), Venue.created_at.desc())
+    return db.execute(stmt).scalars().all()
+
+
+def set_status(db: Session, venue: Venue, status: VenueStatus) -> Venue:
+    """Schimba statusul unei baze (aprobare/suspendare) — apelat doar de super_admin."""
+    venue.status = status
+    db.add(venue)
+    db.commit()
+    db.refresh(venue)
+    return venue
 
 
 def create(db: Session, data: VenueCreate, owner_id: uuid.UUID) -> Venue:

@@ -80,6 +80,27 @@ def list_venue_fields(
     return field_crud.list_fields_by_venue(db, venue_id, only_active=True)
 
 
+@venues_fields_router.get(
+    "/manage",
+    response_model=list[FieldOut],
+    summary="Lista TUTUROR terenurilor unui venue (owner) — include si inactive",
+)
+def list_venue_fields_manage(
+    venue_id: uuid.UUID,
+    current_user: User = Depends(
+        require_role(UserRole.VENUE_ADMIN, UserRole.SUPER_ADMIN)
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Spre deosebire de ruta publica, returneaza si terenurile inactive si
+    functioneaza indiferent de statusul venue-ului (pending/approved/suspended).
+    Necesara pentru dashboard-ul de management.
+    """
+    _ensure_owner_of_venue(venue_id, db, current_user)
+    return field_crud.list_fields_by_venue(db, venue_id, only_active=False)
+
+
 @venues_fields_router.post(
     "",
     response_model=FieldOut,
@@ -145,6 +166,23 @@ def delete_field(
 )
 def list_field_pricing(field_id: uuid.UUID, db: Session = Depends(get_db)):
     _ensure_public_field(field_id, db)
+    return field_crud.list_pricing_rules(db, field_id)
+
+
+@pricing_router.get(
+    "/fields/{field_id}/pricing/manage",
+    response_model=list[PricingRuleOut],
+    summary="Regulile de pret ale unui teren (owner) — merge si pe venue neaprobat",
+)
+def list_field_pricing_manage(
+    field_id: uuid.UUID,
+    current_user: User = Depends(
+        require_role(UserRole.VENUE_ADMIN, UserRole.SUPER_ADMIN)
+    ),
+    db: Session = Depends(get_db),
+):
+    """Varianta owner a listarii de tarife — pentru management, fara cerinta 'approved'."""
+    _ensure_owner_of_field(field_id, db, current_user)
     return field_crud.list_pricing_rules(db, field_id)
 
 
