@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getField, getFieldPricing, createBooking } from '../api/resources'
 import { useAuth } from '../auth/AuthContext'
 import { SURFACE_LABELS, fieldFormat } from '../lib/labels'
+import { Skeleton } from '../components/ui/Skeleton'
+import { PitchIcon, ArrowLeftIcon, ArrowRightIcon } from '../components/ui/icons'
 import {
   dowFromDate,
   buildDaySlots,
@@ -13,6 +15,19 @@ import {
   formatDateRo,
   toDateStr,
 } from '../lib/booking'
+
+// Antet de pas numerotat (1. Data, 2. Oră…) — claritate / progressive disclosure.
+function StepHeader({ n, title, hint }) {
+  return (
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
+        {n}
+      </span>
+      <h2 className="text-sm font-bold text-slate-800">{title}</h2>
+      {hint && <span className="text-xs text-slate-400">{hint}</span>}
+    </div>
+  )
+}
 
 export default function BookingPage() {
   const { fieldId } = useParams()
@@ -93,8 +108,6 @@ export default function BookingPage() {
 
   async function handleBooking() {
     setFormError(null)
-
-    // Trebuie sa fii logat ca sa rezervi.
     if (!user) {
       navigate('/login', { state: { from: location } })
       return
@@ -108,12 +121,10 @@ export default function BookingPage() {
         start_time: localISO(date, startMin),
         end_time: localISO(date, startMin + duration),
       })
-      // Succes -> mergem la "Rezervările mele".
       navigate('/rezervarile-mele', { state: { justBooked: true } })
     } catch (err) {
       const status = err.response?.status
       if (status === 409) {
-        // Slot ocupat -> il marcam ca indisponibil si cerem alta alegere.
         setTakenStarts((prev) => new Set(prev).add(startMin))
         setFormError('Acest interval tocmai a fost ocupat. Alege altul.')
         resetSelection()
@@ -129,50 +140,85 @@ export default function BookingPage() {
     }
   }
 
-  if (loading) return <p className="text-slate-500">Se încarcă…</p>
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-4 w-24" />
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+          <div className="space-y-6">
+            <Skeleton className="h-24 w-full rounded-2xl" />
+            <Skeleton className="h-28 w-full rounded-2xl" />
+            <Skeleton className="h-40 w-full rounded-2xl" />
+          </div>
+          <Skeleton className="h-72 w-full rounded-2xl" />
+        </div>
+      </div>
+    )
+  }
   if (error) return <p className="text-red-600">{error}</p>
   if (!field) return null
 
+  const cardCls = 'rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100'
+
   return (
     <div className="space-y-6">
-      <Link to="/" className="text-sm font-semibold text-brand-600 hover:underline">
-        ← Înapoi
-      </Link>
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
+      >
+        <ArrowLeftIcon className="h-4 w-4" /> Înapoi
+      </button>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Coloana stanga: selectie */}
         <div className="space-y-6">
           {/* Antet teren */}
-          <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-            <h1 className="text-2xl font-extrabold text-slate-900">{field.name}</h1>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
-                {fieldFormat(field)}
+          <section className="animate-fade-in-up overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+            <div className="h-2 bg-gradient-to-r from-brand-500 to-brand-700" />
+            <div className="flex items-center gap-4 p-6">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                <PitchIcon className="h-6 w-6" />
               </span>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                {SURFACE_LABELS[field.surface_type] ?? field.surface_type}
-              </span>
+              <div>
+                <h1 className="text-xl font-extrabold text-slate-900">{field.name}</h1>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                    {fieldFormat(field)}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    {SURFACE_LABELS[field.surface_type] ?? field.surface_type}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    {field.is_indoor ? 'Acoperit' : 'În aer liber'}
+                  </span>
+                </div>
+              </div>
             </div>
           </section>
 
           {/* Data */}
-          <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold text-slate-700">Data</span>
+          <section className={cardCls}>
+            <StepHeader n={1} title="Alege data" />
+            <div className="flex flex-wrap items-center gap-3">
               <input
                 type="date"
                 value={date}
                 min={todayStr}
                 onChange={onChangeDate}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
-            </label>
-            <p className="mt-2 text-sm text-slate-500">{date && formatDateRo(date)}</p>
+              {date && (
+                <span className="rounded-lg bg-brand-50 px-3 py-1.5 text-sm font-semibold capitalize text-brand-700">
+                  {formatDateRo(date)}
+                </span>
+              )}
+            </div>
           </section>
 
           {/* Sloturi */}
-          <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">Oră de început</h2>
+          <section className={cardCls}>
+            <StepHeader n={2} title="Ora de început" hint={slots.length > 0 ? `${slots.length} sloturi` : undefined} />
             {slots.length === 0 ? (
               <p className="text-sm text-slate-500">
                 Nu există tarife (deci nici sloturi) pentru această zi. Alege altă dată.
@@ -197,9 +243,9 @@ export default function BookingPage() {
                       className={[
                         'rounded-lg px-2 py-2 text-sm font-semibold transition',
                         selected
-                          ? 'bg-brand-600 text-white'
+                          ? 'scale-105 bg-brand-600 text-white shadow-md shadow-brand-600/30'
                           : disabled
-                            ? 'cursor-not-allowed bg-slate-100 text-slate-300 line-through'
+                            ? 'cursor-not-allowed bg-slate-50 text-slate-300 line-through'
                             : 'bg-slate-100 text-slate-700 hover:bg-brand-50 hover:text-brand-700',
                       ].join(' ')}
                     >
@@ -213,8 +259,8 @@ export default function BookingPage() {
 
           {/* Durata */}
           {startMin != null && (
-            <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-              <h2 className="mb-3 text-sm font-semibold text-slate-700">Durată</h2>
+            <section className={`${cardCls} animate-fade-in`}>
+              <StepHeader n={3} title="Durată" />
               <div className="flex flex-wrap gap-2">
                 {durationOptions.map((d) => {
                   const est = estimatePrice(rules, dow, startMin, d, slotDuration)
@@ -227,9 +273,9 @@ export default function BookingPage() {
                       disabled={!ok}
                       onClick={() => setDuration(d)}
                       className={[
-                        'rounded-lg px-3 py-2 text-sm font-semibold transition',
+                        'rounded-lg px-3.5 py-2 text-sm font-semibold transition',
                         selected
-                          ? 'bg-brand-600 text-white'
+                          ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
                           : ok
                             ? 'bg-slate-100 text-slate-700 hover:bg-brand-50 hover:text-brand-700'
                             : 'cursor-not-allowed bg-slate-50 text-slate-300',
@@ -245,52 +291,59 @@ export default function BookingPage() {
         </div>
 
         {/* Coloana dreapta: sumar */}
-        <aside className="h-fit rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100 lg:sticky lg:top-20">
-          <h2 className="text-lg font-bold text-slate-900">Sumar rezervare</h2>
-          <dl className="mt-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Teren</dt>
-              <dd className="font-semibold text-slate-900">{field.name}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Data</dt>
-              <dd className="font-semibold text-slate-900">{date}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Interval</dt>
-              <dd className="font-semibold text-slate-900">
-                {startMin != null && duration != null
-                  ? `${minutesToTime(startMin)}–${minutesToTime(startMin + duration)}`
-                  : '—'}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="mt-4 border-t border-slate-100 pt-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-slate-500">Preț estimat</span>
-              <span className="text-2xl font-extrabold text-slate-900">
-                {price != null ? `${price.toFixed(2)} RON` : '—'}
-              </span>
-            </div>
+        <aside className="h-fit overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 lg:sticky lg:top-20">
+          <div className="border-b border-slate-100 bg-slate-50/60 px-6 py-4">
+            <h2 className="text-base font-bold text-slate-900">Sumar rezervare</h2>
           </div>
+          <div className="p-6">
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Teren</dt>
+                <dd className="text-right font-semibold text-slate-900">{field.name}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Data</dt>
+                <dd className="text-right font-semibold capitalize text-slate-900">
+                  {date ? formatDateRo(date) : '—'}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Interval</dt>
+                <dd className="text-right font-semibold text-slate-900">
+                  {startMin != null && duration != null
+                    ? `${minutesToTime(startMin)}–${minutesToTime(startMin + duration)}`
+                    : '—'}
+                </dd>
+              </div>
+            </dl>
 
-          {formError && (
-            <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-              {formError}
+            <div className="mt-5 rounded-xl bg-gradient-to-br from-brand-50 to-mint-50 p-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-medium text-slate-600">Preț estimat</span>
+                <span className="text-2xl font-extrabold text-slate-900">
+                  {price != null ? `${price.toFixed(2)} RON` : '—'}
+                </span>
+              </div>
+            </div>
+
+            {formError && (
+              <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {formError}
+              </p>
+            )}
+
+            <button
+              onClick={handleBooking}
+              disabled={submitting || startMin == null || duration == null || price == null}
+              className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:from-brand-700 hover:to-brand-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+            >
+              {submitting ? 'Se rezervă…' : user ? 'Rezervă' : 'Autentifică-te ca să rezervi'}
+              {!submitting && <ArrowRightIcon className="h-4 w-4" />}
+            </button>
+            <p className="mt-3 text-center text-xs text-slate-400">
+              Prețul final e confirmat de server la rezervare.
             </p>
-          )}
-
-          <button
-            onClick={handleBooking}
-            disabled={submitting || startMin == null || duration == null || price == null}
-            className="mt-4 w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
-          >
-            {submitting ? 'Se rezervă…' : user ? 'Rezervă' : 'Autentifică-te ca să rezervi'}
-          </button>
-          <p className="mt-3 text-center text-xs text-slate-400">
-            Prețul final e confirmat de server la rezervare.
-          </p>
+          </div>
         </aside>
       </div>
     </div>
