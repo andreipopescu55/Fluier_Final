@@ -1,38 +1,38 @@
-/* Aduce tot Tailwind-ul (base + components + utilities). Tailwind v4 = un singur import. */
+/* Tailwind v4 — un singur import. */
 @import "tailwindcss";
 
 /*
-  Tema "Aurora" — tokenuri proprii.
-  In Tailwind v4 definim variabilele de tema in blocul @theme.
-  Ele genereaza automat clase utilitare (ex: --color-brand-600 -> bg-brand-600).
+  Tema "Fluier Final" — dark + accent lime (chartreuse).
+  Tokenurile din @theme genereaza utilitare (ex: --color-accent-400 -> bg-accent-400).
 */
 @theme {
-  /* Fontul implicit (Inter, incarcat in index.html) */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  /* Indigo (brand principal) — paleta completa pentru gradienti/hover */
+  /* Accent lime / chartreuse (brandul Fluier Final) */
+  --color-accent-300: #dcff6b;
+  --color-accent-400: #c8fa3c;
+  --color-accent-500: #b6ec22;
+  --color-accent-600: #9bcb12;
+
+  /* Suprafete (dark) */
+  --color-ink: #0a0d0e;       /* fundalul paginii */
+  --color-ink-2: #0e1213;     /* sectiuni alternative */
+  --color-panel: #14191b;     /* carduri */
+  --color-panel-2: #1b2225;   /* elemente in card / inputuri */
+  --color-line: #2a3236;      /* borduri */
+  --color-line-2: #364045;    /* borduri hover */
+
+  /* Pastram brand/mint pentru paginile inca neconvertite (tranzitoriu) */
   --color-brand-50: #eef2ff;
   --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
   --color-brand-500: #6366f1;
   --color-brand-600: #4f46e5;
   --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
-
-  /* Mint (accent secundar) */
   --color-mint-50: #ecfdf5;
-  --color-mint-100: #d1fae5;
   --color-mint-500: #10b981;
   --color-mint-600: #059669;
-  --color-mint-700: #047857;
 
-  /* Fundalul aplicatiei (slate foarte deschis) */
-  --color-canvas: #f8fafc;
-
-  /* Animatii (genereaza utilitarele animate-*) */
+  /* Animatii */
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
   --animate-fade-in-up: fade-in-up 0.4s ease-out both;
   --animate-fade-in: fade-in 0.3s ease-out both;
@@ -42,7 +42,7 @@
     100% { background-position: 200% 0; }
   }
   @keyframes fade-in-up {
-    from { opacity: 0; transform: translateY(8px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
   @keyframes fade-in {
@@ -51,45 +51,40 @@
   }
 }
 
-/* Fundal cu un gradient foarte subtil (aurora) in loc de plat. */
 body {
-  background-color: var(--color-canvas);
+  background-color: var(--color-ink);
   background-image:
-    radial-gradient(60rem 60rem at 110% -10%, rgba(99, 102, 241, 0.07), transparent 60%),
-    radial-gradient(50rem 50rem at -10% 0%, rgba(16, 185, 129, 0.06), transparent 55%);
+    radial-gradient(45rem 30rem at 50% -8%, rgba(200, 250, 60, 0.10), transparent 60%),
+    radial-gradient(40rem 40rem at 100% 0%, rgba(200, 250, 60, 0.05), transparent 55%);
   background-attachment: fixed;
-  color: #0f172a; /* slate-900 */
+  color: #e2e8f0; /* slate-200 */
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Accesibilitate: inel de focus vizibil si consistent pe orice element interactiv
-   (regula #1 din ghidul UX). Nu eliminam niciodata focus-ul. */
+/* Focus vizibil (accesibilitate) — inel lime pe fundal dark. */
 :focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--color-accent-400);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* Skeleton loader: fundal gradient animat (shimmer). */
+/* Skeleton loader (dark). */
 .skeleton {
   background: linear-gradient(
     100deg,
-    rgb(226 232 240) 30%,
-    rgb(241 245 249) 50%,
-    rgb(226 232 240) 70%
+    rgb(27 34 37) 30%,
+    rgb(40 48 52) 50%,
+    rgb(27 34 37) 70%
   );
   background-size: 200% 100%;
   animation: var(--animate-shimmer);
   border-radius: 0.5rem;
 }
 
-/* Respectam preferinta utilizatorului de reducere a miscarii (regula #1/#7). */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

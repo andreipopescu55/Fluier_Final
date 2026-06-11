@@ -1,16 +1,37 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listVenues } from '../api/resources'
-import { useAuth } from '../auth/AuthContext'
 import { SPORT_BY_LABEL } from '../lib/labels'
 import { VenueGridSkeleton } from '../components/ui/Skeleton'
 import EmptyState from '../components/ui/EmptyState'
 import { PitchIcon, SearchIcon, MapPinIcon, ArrowRightIcon } from '../components/ui/icons'
 
-const FORMAT_SUGGESTIONS = Object.keys(SPORT_BY_LABEL) // Fotbal 5+1 / 7+1 / 11+1
+const FORMATS = Object.entries(SPORT_BY_LABEL) // [['Fotbal 5+1','football_5'], ...]
+const SURFACES = ['Gazon sintetic', 'Gazon natural']
+const FACILITIES = ['Parcare', 'Dușuri', 'Nocturnă']
+
+// Art stilizat de teren (vedere de sus) — inlocuieste pozele pe care backend-ul nu le are.
+function PitchArt() {
+  return (
+    <div className="relative h-36 w-full overflow-hidden bg-gradient-to-br from-emerald-700 to-emerald-950">
+      <svg
+        viewBox="0 0 200 100"
+        preserveAspectRatio="none"
+        className="absolute inset-0 h-full w-full text-white/15"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1"
+      >
+        <rect x="6" y="6" width="188" height="88" rx="2" />
+        <line x1="100" y1="6" x2="100" y2="94" />
+        <circle cx="100" cy="50" r="14" />
+        <path d="M6 32h20v36H6M194 32h-20v36h20" />
+      </svg>
+    </div>
+  )
+}
 
 export default function HomePage() {
-  const { user } = useAuth()
   const [venues, setVenues] = useState([])
   const [cities, setCities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -18,22 +39,15 @@ export default function HomePage() {
 
   // Filtre
   const [q, setQ] = useState('')
-  const [format, setFormat] = useState('')
+  const [format, setFormat] = useState('') // valoarea enum (football_5/7/11) sau ''
   const [city, setCity] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
-  const [debouncedFormat, setDebouncedFormat] = useState('')
 
-  // Debounce pe câmpurile text (evităm un request la fiecare tastă).
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300)
     return () => clearTimeout(t)
   }, [q])
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedFormat(format), 300)
-    return () => clearTimeout(t)
-  }, [format])
 
-  // Lista de orașe pentru dropdown — o luăm o singură dată (toate bazele).
   useEffect(() => {
     let active = true
     listVenues()
@@ -44,14 +58,13 @@ export default function HomePage() {
     }
   }, [])
 
-  // Re-interogăm la schimbarea filtrelor.
   useEffect(() => {
     let active = true
     setLoading(true)
     setError(null)
     const params = {}
     if (debouncedQ.trim()) params.q = debouncedQ.trim()
-    if (debouncedFormat.trim()) params.format = debouncedFormat.trim()
+    if (format) params.sport = format
     if (city) params.city = city
     listVenues(params)
       .then((data) => active && setVenues(data))
@@ -60,7 +73,7 @@ export default function HomePage() {
     return () => {
       active = false
     }
-  }, [debouncedQ, debouncedFormat, city])
+  }, [debouncedQ, format, city])
 
   const hasFilters = Boolean(q || format || city)
 
@@ -71,132 +84,206 @@ export default function HomePage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 via-brand-600 to-brand-800 p-10 text-center shadow-xl sm:p-14">
-        {/* accente decorative */}
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-mint-500/20 blur-2xl" />
-        <div className="relative">
-          <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-inset ring-white/20">
-            ⚡ Rezervări online · fără telefoane
-          </span>
-          <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-            Rezervă terenul tău <span className="text-mint-100">în câteva secunde</span>
+      <section className="relative -mx-4 overflow-hidden border-b border-line bg-ink-2 px-4 py-16 sm:py-20">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-accent-400/10 to-transparent" />
+        <div className="relative mx-auto max-w-3xl text-center">
+          <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+            Unde vrei să joci astăzi?
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-brand-100">
-            {user
-              ? `Bine ai venit, ${user.full_name}! Caută o bază sportivă mai jos.`
-              : 'Caută baze de fotbal, vezi disponibilitatea și rezervă pe loc.'}
-          </p>
+          <p className="mt-3 text-slate-400">Găsește, rezervă și joacă — fără telefoane.</p>
+
+          {/* Bara de cautare */}
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="mx-auto mt-8 flex max-w-2xl flex-col gap-2 rounded-2xl border border-line bg-panel p-2 shadow-xl sm:flex-row sm:items-center"
+          >
+            <div className="relative flex-1">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Oraș, județ sau nume bază…"
+                aria-label="Caută"
+                className="w-full rounded-xl bg-transparent py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-500 outline-none"
+              />
+            </div>
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              aria-label="Oraș"
+              className="cursor-pointer rounded-xl border border-line bg-panel-2 px-3 py-2.5 text-sm text-slate-200 outline-none sm:border-0"
+            >
+              <option value="">Toate orașele</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-xl bg-accent-400 px-5 py-2.5 text-sm font-bold text-ink transition hover:bg-accent-300"
+            >
+              Caută Teren
+            </button>
+          </form>
         </div>
       </section>
 
-      {/* Bara de căutare / filtrare */}
-      <section className="-mt-12 rounded-2xl bg-white p-4 shadow-lg ring-1 ring-slate-100 sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Caută după nume, oraș sau județ…"
-              aria-label="Caută baze sportive"
-              className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            />
+      {/* Layout rezultate */}
+      <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
+        {/* Sidebar filtre */}
+        <aside className="space-y-7">
+          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
+            <span className="text-accent-400">≡</span> Filtre
           </div>
-          <input
-            type="text"
-            list="format-filter-suggestions"
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            placeholder="Format (ex: 5+1)"
-            aria-label="Filtru după format"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          />
-          <datalist id="format-filter-suggestions">
-            {FORMAT_SUGGESTIONS.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
-          <select
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            aria-label="Filtru după oraș"
-            className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          >
-            <option value="">Toate orașele</option>
-            {cities.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={resetFilters}
-            disabled={!hasFilters}
-            className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-default disabled:opacity-40"
-          >
-            Resetează
-          </button>
-        </div>
-      </section>
 
-      {/* Lista baze sportive */}
-      <section>
-        <h2 className="mb-4 text-xl font-extrabold text-slate-900">
-          Baze sportive
-          {!loading && (
-            <span className="ml-2 text-sm font-medium text-slate-400">({venues.length})</span>
-          )}
-        </h2>
+          {/* Format */}
+          <FilterGroup title="Format">
+            <div className="flex flex-col gap-2">
+              {FORMATS.map(([label, val]) => {
+                const active = format === val
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setFormat(active ? '' : val)}
+                    className={[
+                      'flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-medium transition',
+                      active ? 'text-accent-400' : 'text-slate-300 hover:text-white',
+                    ].join(' ')}
+                  >
+                    <span
+                      className={[
+                        'flex h-4 w-4 items-center justify-center rounded border text-[10px]',
+                        active ? 'border-accent-400 bg-accent-400 text-ink' : 'border-line',
+                      ].join(' ')}
+                    >
+                      {active ? '✓' : ''}
+                    </span>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </FilterGroup>
 
-        {loading ? (
-          <VenueGridSkeleton count={6} />
-        ) : error ? (
-          <p className="text-red-600">{error}</p>
-        ) : venues.length === 0 ? (
-          <EmptyState
-            icon={<PitchIcon className="h-7 w-7" />}
-            title={hasFilters ? 'Nicio bază găsită' : 'Nu există baze disponibile'}
-            description={
-              hasFilters
-                ? 'Nicio bază nu corespunde filtrelor alese. Încearcă să le relaxezi.'
-                : 'Momentan nu sunt baze sportive aprobate. Revino mai târziu.'
-            }
-            actionLabel={hasFilters ? 'Resetează filtrele' : undefined}
-            onAction={resetFilters}
-          />
-        ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {venues.map((v, i) => (
-              <Link
-                key={v.id}
-                to={`/venue/${v.slug}`}
-                style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
-                className="group animate-fade-in-up rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-brand-200"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition group-hover:bg-brand-600 group-hover:text-white">
-                  <PitchIcon className="h-6 w-6" />
-                </div>
-                <h3 className="mt-4 text-lg font-bold text-slate-900 group-hover:text-brand-700">
-                  {v.name}
-                </h3>
-                <p className="mt-1 flex items-center gap-1 text-sm text-slate-500">
-                  <MapPinIcon className="h-4 w-4 text-slate-400" />
-                  {v.city}, {v.county}
-                </p>
-                <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-600">
-                  Vezi terenurile
-                  <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
+          {/* Suprafata (vizual — necesita filtru in backend) */}
+          <FilterGroup title="Suprafață" soon>
+            <div className="grid grid-cols-2 gap-2">
+              {SURFACES.map((s) => (
+                <span
+                  key={s}
+                  className="cursor-not-allowed rounded-lg border border-line px-2 py-1.5 text-center text-xs text-slate-500"
+                >
+                  {s}
                 </span>
-              </Link>
-            ))}
+              ))}
+            </div>
+          </FilterGroup>
+
+          {/* Facilitati (vizual) */}
+          <FilterGroup title="Facilități" soon>
+            <ul className="space-y-2 text-sm text-slate-500">
+              {FACILITIES.map((f) => (
+                <li key={f} className="flex items-center justify-between">
+                  <span>{f}</span>
+                  <span className="text-slate-600">—</span>
+                </li>
+              ))}
+            </ul>
+          </FilterGroup>
+        </aside>
+
+        {/* Rezultate */}
+        <section>
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Rezultate{city ? ` în ${city}` : ''}
+              </h2>
+              {!loading && (
+                <p className="text-sm text-slate-400">
+                  Am găsit {venues.length} {venues.length === 1 ? 'locație' : 'locații'} pentru tine.
+                </p>
+              )}
+            </div>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-lg border border-line bg-panel px-3 py-1.5 text-sm font-semibold text-slate-200 transition hover:border-line-2 hover:text-white"
+              >
+                Resetează filtrele
+              </button>
+            )}
           </div>
+
+          {loading ? (
+            <VenueGridSkeleton count={4} />
+          ) : error ? (
+            <p className="text-red-400">{error}</p>
+          ) : venues.length === 0 ? (
+            <EmptyState
+              icon={<PitchIcon className="h-7 w-7" />}
+              title={hasFilters ? 'Nicio bază găsită' : 'Nu există baze disponibile'}
+              description={
+                hasFilters
+                  ? 'Nicio bază nu corespunde filtrelor. Încearcă să le relaxezi.'
+                  : 'Momentan nu sunt baze sportive aprobate.'
+              }
+              actionLabel={hasFilters ? 'Resetează filtrele' : undefined}
+              onAction={resetFilters}
+            />
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2">
+              {venues.map((v, i) => (
+                <Link
+                  key={v.id}
+                  to={`/venue/${v.slug}`}
+                  style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                  className="group animate-fade-in-up overflow-hidden rounded-2xl bg-panel ring-1 ring-line transition duration-200 hover:-translate-y-1 hover:ring-accent-400/50"
+                >
+                  <PitchArt />
+                  <div className="p-5">
+                    <h3 className="text-base font-bold text-white group-hover:text-accent-400">
+                      {v.name}
+                    </h3>
+                    <p className="mt-1 flex items-center gap-1 text-sm text-slate-400">
+                      <MapPinIcon className="h-4 w-4 text-slate-500" />
+                      {v.city}, {v.county}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="text-sm font-semibold text-accent-400">Vezi terenurile</span>
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-slate-300 transition group-hover:border-accent-400 group-hover:text-accent-400">
+                        <ArrowRightIcon className="h-4 w-4" />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function FilterGroup({ title, soon, children }) {
+  return (
+    <div>
+      <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+        {title}
+        {soon && (
+          <span className="rounded bg-panel-2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+            în curând
+          </span>
         )}
-      </section>
+      </h4>
+      {children}
     </div>
   )
 }

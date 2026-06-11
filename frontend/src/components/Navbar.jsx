@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { PitchIcon, MenuIcon, CloseIcon } from './ui/icons'
+import { MenuIcon, CloseIcon } from './ui/icons'
 
 const ROLE_LABELS = {
   client: 'Client',
@@ -12,8 +12,8 @@ const ROLE_LABELS = {
 function navLinkClass({ isActive }) {
   const base = 'rounded-lg px-3 py-2 text-sm font-semibold transition'
   return isActive
-    ? `${base} bg-brand-50 text-brand-700`
-    : `${base} text-slate-600 hover:bg-slate-100 hover:text-slate-900`
+    ? `${base} text-accent-400`
+    : `${base} text-slate-300 hover:text-white`
 }
 
 export default function Navbar() {
@@ -30,7 +30,6 @@ export default function Navbar() {
     navigate('/')
   }
 
-  // Link-urile de navigatie (refolosite pe desktop + mobil).
   const links = (
     <>
       <NavLink to="/" end className={navLinkClass} onClick={() => setOpen(false)}>
@@ -50,15 +49,12 @@ export default function Navbar() {
   )
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-md">
-      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        {/* Logo */}
+    <header className="sticky top-0 z-30 border-b border-line bg-ink/80 backdrop-blur-md">
+      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+        {/* Wordmark */}
         <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
-            <PitchIcon className="h-5 w-5" />
-          </span>
-          <span className="text-base font-extrabold tracking-tight text-slate-900">
-            Rezervări Terenuri
+          <span className="text-xl font-extrabold uppercase tracking-tight text-accent-400">
+            Fluier&nbsp;Final
           </span>
         </Link>
 
@@ -70,16 +66,14 @@ export default function Navbar() {
           {isAuthenticated ? (
             <>
               <div className="text-right">
-                <p className="text-sm font-semibold leading-tight text-slate-900">
-                  {user.full_name}
-                </p>
-                <p className="text-xs leading-tight text-slate-500">
+                <p className="text-sm font-semibold leading-tight text-white">{user.full_name}</p>
+                <p className="text-xs leading-tight text-slate-400">
                   {ROLE_LABELS[user.role] ?? user.role}
                 </p>
               </div>
               <button
                 onClick={handleLogout}
-                className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+                className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-line-2 hover:text-white"
               >
                 Logout
               </button>
@@ -88,13 +82,13 @@ export default function Navbar() {
             <>
               <Link
                 to="/login"
-                className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-300 transition hover:text-white"
               >
                 Autentificare
               </Link>
               <Link
                 to="/register"
-                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+                className="rounded-lg bg-accent-400 px-4 py-2 text-sm font-bold text-ink transition hover:bg-accent-300"
               >
                 Cont nou
               </Link>
@@ -108,7 +102,7 @@ export default function Navbar() {
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? 'Închide meniul' : 'Deschide meniul'}
           aria-expanded={open}
-          className="rounded-lg p-2 text-slate-700 transition hover:bg-slate-100 sm:hidden"
+          className="rounded-lg p-2 text-slate-200 transition hover:bg-panel-2 sm:hidden"
         >
           {open ? <CloseIcon /> : <MenuIcon />}
         </button>
@@ -116,18 +110,18 @@ export default function Navbar() {
 
       {/* Panou mobil */}
       {open && (
-        <div className="animate-fade-in border-t border-slate-100 bg-white px-4 py-3 sm:hidden">
+        <div className="animate-fade-in border-t border-line bg-ink px-4 py-3 sm:hidden">
           <div className="flex flex-col gap-1">{links}</div>
-          <div className="mt-3 border-t border-slate-100 pt-3">
+          <div className="mt-3 border-t border-line pt-3">
             {isAuthenticated ? (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{user.full_name}</p>
-                  <p className="text-xs text-slate-500">{ROLE_LABELS[user.role] ?? user.role}</p>
+                  <p className="text-sm font-semibold text-white">{user.full_name}</p>
+                  <p className="text-xs text-slate-400">{ROLE_LABELS[user.role] ?? user.role}</p>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+                  className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm font-semibold text-slate-200"
                 >
                   Logout
                 </button>
@@ -137,14 +131,14 @@ export default function Navbar() {
                 <Link
                   to="/login"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  className="flex-1 rounded-lg border border-line px-3 py-2 text-center text-sm font-semibold text-slate-200"
                 >
                   Autentificare
                 </Link>
                 <Link
                   to="/register"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-brand-700"
+                  className="flex-1 rounded-lg bg-accent-400 px-3 py-2 text-center text-sm font-bold text-ink"
                 >
                   Cont nou
                 </Link>

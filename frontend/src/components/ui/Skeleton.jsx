@@ -9,11 +9,13 @@ export function Skeleton({ className = '' }) {
 // Card-placeholder pentru o baza sportiva (oglindeste structura cardului real).
 export function VenueCardSkeleton() {
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-      <Skeleton className="h-12 w-12 rounded-xl" />
-      <Skeleton className="mt-4 h-5 w-2/3" />
-      <Skeleton className="mt-2 h-4 w-1/2" />
-      <Skeleton className="mt-5 h-4 w-28" />
+    <div className="overflow-hidden rounded-2xl bg-panel ring-1 ring-line">
+      <Skeleton className="h-36 w-full rounded-none" />
+      <div className="p-5">
+        <Skeleton className="h-5 w-2/3" />
+        <Skeleton className="mt-2 h-4 w-1/2" />
+        <Skeleton className="mt-4 h-9 w-full" />
+      </div>
     </div>
   )
 }
