@@ -155,6 +155,14 @@ def delete_field(
     db: Session = Depends(get_db),
 ):
     field = _ensure_owner_of_field(field_id, db, current_user)
+    # FK-ul booking.field_id e ON DELETE RESTRICT — nu poti sterge un teren cu
+    # rezervari (inclusiv istoric). Returnam un mesaj clar in loc de 500.
+    if field_crud.has_bookings(db, field_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Terenul are rezervări și nu poate fi șters. Dezactivează-l "
+                   "(debifează „Activ”) ca să-l ascunzi clienților.",
+        )
     field_crud.delete_field(db, field)
 
 

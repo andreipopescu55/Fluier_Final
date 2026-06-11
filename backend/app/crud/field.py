@@ -18,6 +18,15 @@ def get_field_by_id(db: Session, field_id: uuid.UUID) -> Optional[Field]:
     return db.get(Field, field_id)
 
 
+def has_bookings(db: Session, field_id: uuid.UUID) -> bool:
+    """True daca terenul are macar o rezervare (FK-ul e ON DELETE RESTRICT)."""
+    from app.models.booking import Booking  # import local: evitam dependinte circulare
+    row = db.execute(
+        select(Booking.id).where(Booking.field_id == field_id).limit(1)
+    ).first()
+    return row is not None
+
+
 def list_fields_by_venue(db: Session, venue_id: uuid.UUID,
                           only_active: bool = False) -> Sequence[Field]:
     """
