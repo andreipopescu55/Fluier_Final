@@ -42,6 +42,7 @@ export default function HomePage() {
   const [format, setFormat] = useState('') // valoarea enum (football_5/7/11) sau ''
   const [city, setCity] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false) // pliere filtre pe mobil
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300)
@@ -135,11 +136,20 @@ export default function HomePage() {
       {/* Layout rezultate */}
       <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
         {/* Sidebar filtre */}
-        <aside className="space-y-7">
-          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
-            <span className="text-accent-400">≡</span> Filtre
-          </div>
+        <aside className="space-y-5 lg:space-y-7">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-sm font-bold uppercase tracking-wide text-white transition hover:border-line-2 lg:pointer-events-none lg:border-0 lg:bg-transparent lg:p-0"
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-accent-400">≡</span> Filtre
+              {hasFilters && <span className="h-2 w-2 rounded-full bg-accent-400" />}
+            </span>
+            <span className="text-slate-400 lg:hidden">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
 
+          <div className={`${filtersOpen ? 'block' : 'hidden'} space-y-7 lg:block`}>
           {/* Format */}
           <FilterGroup title="Format">
             <div className="flex flex-col gap-2">
@@ -195,6 +205,7 @@ export default function HomePage() {
               ))}
             </ul>
           </FilterGroup>
+          </div>
         </aside>
 
         {/* Rezultate */}

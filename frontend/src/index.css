@@ -139,3 +139,14 @@ body {
 .fc .fc-button-primary:not(:disabled).fc-button-active:focus {
   box-shadow: 0 0 0 2px rgba(200, 250, 60, 0.3);
 }
+
+/* Mobil: stivuim toolbar-ul ca sa nu existe scroll orizontal. */
+@media (max-width: 640px) {
+  .fc .fc-toolbar.fc-header-toolbar {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .fc .fc-toolbar-title { font-size: 1.1rem; }
+  .fc .fc-button { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+}
