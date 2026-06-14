@@ -2,7 +2,7 @@
 Dependinte FastAPI: sesiune DB + user curent extras din JWT.
 """
 import uuid
-from typing import Generator
+from typing import Generator, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -18,6 +18,10 @@ from app.crud import user_crud
 # tokenUrl spune FastAPI unde se obtine un token — pentru ca Swagger UI sa
 # afiseze butonul "Authorize" si sa stie unde sa trimita user/pass.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+# Varianta care NU arunca 401 daca lipseste tokenul (pentru endpointuri publice
+# care personalizeaza raspunsul cand userul e logat — ex: "scorul meu" la rating).
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -57,6 +61,28 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
+    return user
+
+
+def get_current_user_optional(
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+) -> Optional[User]:
+    """
+    La fel ca get_current_user, dar returneaza None in loc sa arunce 401 daca
+    nu exista token (sau e invalid). Pentru endpointuri publice care vor sa stie
+    daca userul curent e logat, fara sa-l forteze sa se autentifice.
+    """
+    if not token:
+        return None
+    try:
+        payload = decode_access_token(token)
+        user_id = uuid.UUID(payload.get("sub"))
+    except (JWTError, ValueError, TypeError):
+        return None
+    user = user_crud.get_by_id(db, user_id)
+    if user is None or not user.is_active:
+        return None
     return user
 
 

@@ -58,6 +58,11 @@ class Venue(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()")
     )
 
+    # Câmpuri tranzitorii (NU coloane) — completate de endpoint din agregatul de
+    # rating si citite de Pydantic la serializare. Implicit: fara evaluari.
+    rating_avg = None
+    rating_count = 0
+
     # Relationships
     owner: Mapped["User"] = relationship(
         "User", back_populates="venues", foreign_keys=[owner_id]
@@ -73,6 +78,9 @@ class Venue(Base):
     )
     subscriptions: Mapped[List["Subscription"]] = relationship(
         "Subscription", back_populates="venue", cascade="all, delete-orphan"
+    )
+    ratings: Mapped[List["Rating"]] = relationship(
+        "Rating", back_populates="venue", cascade="all, delete-orphan"
     )
 
 

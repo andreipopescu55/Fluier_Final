@@ -18,3 +18,4 @@ from app.models.booking import Booking                    # noqa: F401
 from app.models.subscription import Subscription, Payment # noqa: F401
 from app.models.notification import Notification          # noqa: F401
 from app.models.audit_log import AuditLog                 # noqa: F401
+from app.models.rating import Rating                      # noqa: F401

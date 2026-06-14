@@ -25,6 +25,20 @@ export function getFieldPricing(fieldId) {
   return api.get(`/fields/${fieldId}/pricing`).then((r) => r.data)
 }
 
+// ── Rating baze ──────────────────────────────────────────────────
+// Sumar public (media + numar); my_score vine completat daca esti logat.
+export function getVenueRating(venueId) {
+  return api.get(`/venues/${venueId}/rating`).then((r) => r.data)
+}
+
+export function rateVenue(venueId, score, comment) {
+  return api.put(`/venues/${venueId}/rating`, { score, comment }).then((r) => r.data)
+}
+
+export function deleteVenueRating(venueId) {
+  return api.delete(`/venues/${venueId}/rating`).then((r) => r.data)
+}
+
 // ── Bookings (necesita auth) ─────────────────────────────────────
 export function createBooking(payload) {
   return api.post('/bookings', payload).then((r) => r.data)
