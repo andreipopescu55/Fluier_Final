@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getVenue, listVenueFields } from '../api/resources'
+import { getVenue, listVenueFields, getVenueRating, rateVenue } from '../api/resources'
+import { useAuth } from '../auth/AuthContext'
 import { SURFACE_LABELS, fieldFormat } from '../lib/labels'
 import { Skeleton } from '../components/ui/Skeleton'
 import EmptyState from '../components/ui/EmptyState'
+import { RatingBadge, StarRating } from '../components/ui/Stars'
 import {
   PitchIcon, MapPinIcon, ClockIcon, PhoneIcon, ArrowRightIcon, ArrowLeftIcon,
 } from '../components/ui/icons'
@@ -12,8 +14,11 @@ const hhmm = (t) => (t ? t.slice(0, 5) : '')
 
 export default function VenuePage() {
   const { slug } = useParams()
+  const { user } = useAuth()
   const [venue, setVenue] = useState(null)
   const [fields, setFields] = useState([])
+  const [rating, setRating] = useState(null) // { average, count, my_score }
+  const [ratingBusy, setRatingBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -24,6 +29,7 @@ export default function VenuePage() {
       .then((v) => {
         if (!active) return
         setVenue(v)
+        getVenueRating(v.id).then((rs) => active && setRating(rs)).catch(() => {})
         return listVenueFields(v.id).then((f) => active && setFields(f))
       })
       .catch(() => active && setError('Baza sportivă nu a fost găsită.'))
@@ -32,6 +38,19 @@ export default function VenuePage() {
       active = false
     }
   }, [slug])
+
+  async function handleRate(score) {
+    if (!user || !venue) return
+    setRatingBusy(true)
+    try {
+      const updated = await rateVenue(venue.id, score)
+      setRating(updated)
+    } catch {
+      /* lasam UI-ul neschimbat la eroare */
+    } finally {
+      setRatingBusy(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -82,10 +101,49 @@ export default function VenuePage() {
                     {venue.phone}
                   </span>
                 )}
+                {rating && <RatingBadge avg={rating.average} count={rating.count} />}
               </div>
               {venue.description && <p className="mt-4 text-slate-300">{venue.description}</p>}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Evaluează baza */}
+      <section className="rounded-2xl bg-panel p-6 ring-1 ring-line">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-white">Evaluează această bază</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {rating?.count
+                ? `Media: ${Number(rating.average).toFixed(1)} din ${rating.count} ${
+                    rating.count === 1 ? 'evaluare' : 'evaluări'
+                  }.`
+                : 'Fii primul care evaluează.'}
+            </p>
+          </div>
+          {!user ? (
+            <div className="flex flex-col items-end gap-1.5">
+              <StarRating value={rating?.average ?? 0} readOnly size="h-7 w-7" />
+              <Link to="/login" className="text-sm font-semibold text-accent-400 hover:text-accent-300">
+                Autentifică-te ca să evaluezi →
+              </Link>
+            </div>
+          ) : rating?.can_rate ? (
+            <div className="text-right">
+              <StarRating value={rating?.my_score ?? 0} onRate={handleRate} disabled={ratingBusy} />
+              <p className="mt-1 text-xs text-slate-500">
+                {rating?.my_score ? `Evaluarea ta: ${rating.my_score}/5` : 'Apasă o stea'}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-end gap-1.5">
+              <StarRating value={rating?.average ?? 0} readOnly size="h-7 w-7" />
+              <p className="max-w-[16rem] text-right text-xs text-slate-500">
+                🔒 Te așteptăm cu o evaluare imediat ce ai terminat de jucat și sesiunea ta s-a încheiat!
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

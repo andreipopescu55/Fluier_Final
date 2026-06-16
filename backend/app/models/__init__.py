@@ -20,3 +20,4 @@ from app.models.subscription import Subscription, Payment # noqa: F401
 from app.models.notification import Notification          # noqa: F401
 from app.models.audit_log import AuditLog                 # noqa: F401
 from app.models.match import Match, MatchParticipant      # noqa: F401
+from app.models.rating import Rating                      # noqa: F401

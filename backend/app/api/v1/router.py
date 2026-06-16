@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    health, auth, venues, fields, bookings, admin, subscriptions, matches,
+    health, auth, venues, fields, bookings, admin, subscriptions, matches, ratings,
 )
 
 api_router = APIRouter()
@@ -15,3 +15,4 @@ api_router.include_router(bookings.router)
 api_router.include_router(admin.router)
 api_router.include_router(subscriptions.router)
 api_router.include_router(matches.router)
+api_router.include_router(ratings.router)

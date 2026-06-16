@@ -76,6 +76,10 @@ class VenueOut(VenueBase):
     status: VenueStatus
     created_at: datetime
 
+    # Rating agregat (completat de endpoint).
+    rating_avg: Optional[float] = None
+    rating_count: int = 0
+
 
 class VenueListItem(BaseModel):
     # Versiune mai slaba pentru listare publica — exclude detalii sensibile/voluminoase.
@@ -87,3 +91,7 @@ class VenueListItem(BaseModel):
     city: str
     county: str
     status: VenueStatus
+
+    # Rating agregat (completat de endpoint).
+    rating_avg: Optional[float] = None
+    rating_count: int = 0

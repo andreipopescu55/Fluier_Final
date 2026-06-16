@@ -19,9 +19,9 @@ from app.crud import user_crud
 # afiseze butonul "Authorize" si sa stie unde sa trimita user/pass.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-# Varianta cu auto_error=False: nu arunca 401 daca lipseste token-ul.
-# Folosit pe endpoint-uri publice care se *personalizeaza* daca esti logat
-# (ex: lista de meciuri arata starea ta daca esti autentificat).
+# Varianta cu auto_error=False: nu arunca 401 daca lipseste token-ul. Folosit pe
+# endpoint-uri publice care se *personalizeaza* daca esti logat (ex: lista de
+# meciuri arata starea ta; sumarul de rating arata "scorul meu").
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, require_role
-from app.crud import venue_crud
+from app.crud import venue_crud, rating_crud
 from app.models.user import User
 from app.models.enums import UserRole, VenueStatus, SportType
 from app.models.venue import Venue
@@ -67,9 +67,14 @@ def list_venues(
     Endpoint public — nu cere auth.
     Returneaza doar venue-uri cu status='approved', cu filtre optionale.
     """
-    return venue_crud.list_public(
+    venues = venue_crud.list_public(
         db, q=q, city=city, county=county, sport=sport, fmt=format, limit=limit, offset=offset
     )
+    # Atasam media + numarul de rating-uri (un singur query agregat).
+    summaries = rating_crud.get_summaries(db, [v.id for v in venues])
+    for v in venues:
+        v.rating_avg, v.rating_count = summaries.get(v.id, (None, 0))
+    return venues
 
 
 @router.get(
@@ -101,6 +106,7 @@ def get_venue(slug: str, db: Session = Depends(get_db)):
     venue = venue_crud.get_by_slug(db, slug)
     if venue is None or venue.status != VenueStatus.APPROVED:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venue inexistent")
+    venue.rating_avg, venue.rating_count = rating_crud.get_summary(db, venue.id)
     return venue
 
 

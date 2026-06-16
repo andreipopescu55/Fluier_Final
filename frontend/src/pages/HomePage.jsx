@@ -5,6 +5,7 @@ import { SPORT_BY_LABEL } from '../lib/labels'
 import { VenueGridSkeleton } from '../components/ui/Skeleton'
 import EmptyState from '../components/ui/EmptyState'
 import { PitchIcon, SearchIcon, MapPinIcon, ArrowRightIcon } from '../components/ui/icons'
+import { RatingBadge } from '../components/ui/Stars'
 
 const FORMATS = Object.entries(SPORT_BY_LABEL) // [['Fotbal 5+1','football_5'], ...]
 const SURFACES = ['Gazon sintetic', 'Gazon natural']
@@ -255,9 +256,14 @@ export default function HomePage() {
                   key={v.id}
                   to={`/venue/${v.slug}`}
                   style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
-                  className="group animate-fade-in-up overflow-hidden rounded-2xl bg-panel ring-1 ring-line transition duration-200 hover:-translate-y-1 hover:ring-accent-400/50"
+                  className="group relative animate-fade-in-up overflow-hidden rounded-2xl bg-panel ring-1 ring-line transition duration-200 hover:-translate-y-1 hover:ring-accent-400/50"
                 >
                   <PitchArt />
+                  {v.rating_count > 0 && (
+                    <div className="absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 backdrop-blur-sm">
+                      <RatingBadge avg={v.rating_avg} count={v.rating_count} />
+                    </div>
+                  )}
                   <div className="p-5">
                     <h3 className="text-base font-bold text-white group-hover:text-accent-400">
                       {v.name}

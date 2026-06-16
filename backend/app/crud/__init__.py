@@ -5,3 +5,4 @@ from app.crud import field as field_crud    # noqa: F401
 from app.crud import booking as booking_crud  # noqa: F401
 from app.crud import subscription as subscription_crud  # noqa: F401
 from app.crud import match as match_crud  # noqa: F401
+from app.crud import rating as rating_crud  # noqa: F401
