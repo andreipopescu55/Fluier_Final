@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getField, getFieldPricing, createBooking } from '../api/resources'
+import { getField, getFieldPricing, createBooking, payBookingDeposit } from '../api/resources'
 import { useAuth } from '../auth/AuthContext'
 import { SURFACE_LABELS, fieldFormat } from '../lib/labels'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -46,6 +46,12 @@ export default function BookingPage() {
   const [takenStarts, setTakenStarts] = useState(new Set())
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState(null)
+
+  // Pasul de plata: rezervarea creata (pending) pentru care se cere avansul.
+  const [pendingBooking, setPendingBooking] = useState(null)
+  const [ack, setAck] = useState(false)
+  const [paying, setPaying] = useState(false)
+  const [payError, setPayError] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -107,12 +113,15 @@ export default function BookingPage() {
 
     setSubmitting(true)
     try {
-      await createBooking({
+      const booking = await createBooking({
         field_id: fieldId,
         start_time: localISO(date, startMin),
         end_time: localISO(date, startMin + duration),
       })
-      navigate('/rezervarile-mele', { state: { justBooked: true } })
+      // Rezervarea e creata cu status pending -> trecem la pasul de plata a avansului.
+      setAck(false)
+      setPayError(null)
+      setPendingBooking(booking)
     } catch (err) {
       const status = err.response?.status
       if (status === 409) {
@@ -128,6 +137,20 @@ export default function BookingPage() {
       }
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handlePayDeposit() {
+    if (!pendingBooking || !ack) return
+    setPayError(null)
+    setPaying(true)
+    try {
+      await payBookingDeposit(pendingBooking.id)
+      navigate('/rezervarile-mele', { state: { justConfirmed: true } })
+    } catch {
+      setPayError('Plata a eșuat. Încearcă din nou.')
+    } finally {
+      setPaying(false)
     }
   }
 
@@ -331,10 +354,95 @@ export default function BookingPage() {
               {!submitting && <ArrowRightIcon className="h-4 w-4" />}
             </button>
             <p className="mt-3 text-center text-xs text-slate-500">
-              Prețul final e confirmat de server la rezervare.
+              Confirmi rezervarea plătind un avans de <span className="font-semibold text-slate-300">50%</span>; restul la teren.
             </p>
           </div>
         </aside>
+      </div>
+
+      {pendingBooking && (
+        <DepositModal
+          booking={pendingBooking}
+          ack={ack}
+          setAck={setAck}
+          paying={paying}
+          error={payError}
+          onPay={handlePayDeposit}
+          onLater={() => navigate('/rezervarile-mele', { state: { justBooked: true } })}
+        />
+      )}
+    </div>
+  )
+}
+
+// Pasul de confirmare: avans 50% cu cardul (mock) + acceptarea platii restului la teren.
+function DepositModal({ booking, ack, setAck, paying, error, onPay, onLater }) {
+  const total = Number(booking.total_price)
+  const deposit = booking.deposit_amount != null ? Number(booking.deposit_amount) : total / 2
+  const rest = total - deposit
+  const cur = booking.currency
+  const row = 'flex items-center justify-between text-sm'
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-panel shadow-xl ring-1 ring-line">
+        <div className="h-2 bg-gradient-to-r from-accent-500 to-accent-400" />
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-white">Confirmă rezervarea</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            Plătești acum un avans de 50% cu cardul. Restul se achită la baza sportivă.
+          </p>
+
+          <div className="mt-5 space-y-2.5 rounded-xl border border-line bg-panel-2 p-4">
+            <div className={row}>
+              <span className="text-slate-400">Total</span>
+              <span className="font-semibold text-white">{total.toFixed(2)} {cur}</span>
+            </div>
+            <div className={row}>
+              <span className="text-slate-300">Avans acum (card)</span>
+              <span className="text-lg font-extrabold text-accent-400">{deposit.toFixed(2)} {cur}</span>
+            </div>
+            <div className={`${row} border-t border-line pt-2.5`}>
+              <span className="text-slate-400">De plătit la teren</span>
+              <span className="font-semibold text-white">{rest.toFixed(2)} {cur}</span>
+            </div>
+          </div>
+
+          <label className="mt-4 flex items-start gap-2.5 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={ack}
+              onChange={(e) => setAck(e.target.checked)}
+              className="mt-0.5 accent-[var(--color-accent-400)]"
+            />
+            <span>Înțeleg că restul de <b className="text-white">{rest.toFixed(2)} {cur}</b> se achită la baza sportivă.</span>
+          </label>
+
+          {error && (
+            <p className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 ring-1 ring-red-500/20">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={onPay}
+            disabled={!ack || paying}
+            className="mt-5 w-full rounded-lg bg-accent-400 px-4 py-3 text-sm font-bold text-ink transition hover:bg-accent-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {paying ? 'Se procesează…' : `Plătește avansul ${deposit.toFixed(2)} ${cur}`}
+          </button>
+          <button
+            type="button"
+            onClick={onLater}
+            disabled={paying}
+            className="mt-2 w-full rounded-lg px-4 py-2 text-sm font-semibold text-slate-400 transition hover:text-white disabled:opacity-50"
+          >
+            Plătesc mai târziu
+          </button>
+          <p className="mt-3 text-center text-xs text-slate-500">
+            Plată simulată (demo) — nu se folosește un card real.
+          </p>
+        </div>
       </div>
     </div>
   )

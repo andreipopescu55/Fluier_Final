@@ -9,17 +9,23 @@ from sqlalchemy.orm import Session
 from app.models.rating import Rating
 from app.models.booking import Booking
 from app.models.field import Field
-from app.models.enums import BookingStatus
+from app.models.match import Match, MatchParticipant
+from app.models.enums import BookingStatus, ParticipantStatus
 
 
 def user_has_played(db: Session, venue_id: uuid.UUID, user_id: uuid.UUID) -> bool:
     """
-    True daca userul are la aceasta baza o rezervare al carei interval S-A TERMINAT
-    deja (end_time < acum) si NU e anulata — adica a jucat efectiv acolo.
-    Conditie ca sa poata lasa un rating.
+    True daca userul a jucat efectiv la aceasta baza — conditie ca sa poata lasa
+    un rating. "A jucat" inseamna ca exista un interval deja terminat (end_time <
+    acum) si neanulat, in oricare din situatii:
+      (a) userul e proprietarul rezervarii, SAU
+      (b) userul a fost participant APROBAT la un meci deschis pe acea rezervare.
+    Astfel si cei care s-au alaturat unui meci (nu doar organizatorul) pot evalua.
     """
     now = datetime.now(timezone.utc)
-    stmt = (
+
+    # (a) Rezervare proprie, trecuta, neanulata.
+    own = (
         select(Booking.id)
         .join(Field, Field.id == Booking.field_id)
         .where(
@@ -30,7 +36,25 @@ def user_has_played(db: Session, venue_id: uuid.UUID, user_id: uuid.UUID) -> boo
         )
         .limit(1)
     )
-    return db.execute(stmt).first() is not None
+    if db.execute(own).first() is not None:
+        return True
+
+    # (b) Participant aprobat la un meci pe o rezervare trecuta, neanulata.
+    played = (
+        select(MatchParticipant.id)
+        .join(Match, Match.id == MatchParticipant.match_id)
+        .join(Booking, Booking.id == Match.booking_id)
+        .join(Field, Field.id == Booking.field_id)
+        .where(
+            Field.venue_id == venue_id,
+            MatchParticipant.user_id == user_id,
+            MatchParticipant.status == ParticipantStatus.APPROVED,
+            Booking.end_time < now,
+            Booking.status != BookingStatus.CANCELLED,
+        )
+        .limit(1)
+    )
+    return db.execute(played).first() is not None
 
 
 def get_user_rating(db: Session, venue_id: uuid.UUID, user_id: uuid.UUID) -> Optional[Rating]:

@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 
 from app.models.booking import Booking
 from app.models.field import PricingRule
-from app.models.enums import BookingStatus, BookingSource
+from app.models.subscription import Payment
+from app.models.enums import BookingStatus, BookingSource, PaymentStatus
 
 
 # Fusul orar al bazelor sportive (aplicatia deserveste Romania). Convertim
@@ -30,6 +31,36 @@ LOCAL_TZ = ZoneInfo("Europe/Bucharest")
 # Cat ramane o rezervare "pending" inainte sa fie considerata expirata
 # (folosit la pasul 9: curatarea rezervarilor neplatite).
 PENDING_EXPIRY_MINUTES = 15
+
+# Avans: 50% din total, platit cu cardul pentru confirmare; restul la baza.
+DEPOSIT_RATIO = Decimal("0.5")
+
+# Anulare permisa doar cu cel putin atatea ore inainte de start (politica client).
+CANCELLATION_CUTOFF_HOURS = 24
+
+
+def compute_deposit(total_price: Decimal) -> Decimal:
+    """Avansul = 50% din total, rotunjit la 2 zecimale (in sus la jumatate de ban)."""
+    return (Decimal(total_price) * DEPOSIT_RATIO).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def hours_until_start(booking: Booking, now: Optional[datetime] = None) -> float:
+    """Cate ore mai sunt pana la inceputul rezervarii (poate fi negativ)."""
+    now = now or datetime.now(timezone.utc)
+    return (ensure_tz(booking.start_time) - now).total_seconds() / 3600
+
+
+def owner_can_cancel(booking: Booking, now: Optional[datetime] = None) -> bool:
+    """
+    Politica pentru client:
+      - pending (avans neplatit) -> poate renunta oricand;
+      - confirmed -> doar cu cel putin CANCELLATION_CUTOFF_HOURS ore inainte.
+    """
+    if booking.status == BookingStatus.PENDING:
+        return True
+    if booking.status == BookingStatus.CONFIRMED:
+        return hours_until_start(booking, now) >= CANCELLATION_CUTOFF_HOURS
+    return False
 
 
 def ensure_tz(dt: datetime) -> datetime:
@@ -147,6 +178,7 @@ def create_booking(
         customer_name=customer_name,
         customer_phone=customer_phone,
         notes=notes,
+        deposit_amount=compute_deposit(total_price) if total_price > 0 else None,
     )
     db.add(booking)
     try:
@@ -238,6 +270,34 @@ def expire_stale_pending_bookings(
     return len(stale)
 
 
+# ── Plata avansului (confirmare) ────────────────────────────────────────────────
+def pay_deposit(db: Session, booking: Booking) -> Booking:
+    """
+    Inregistreaza plata avansului (MOCK — fara card real, ca abonamentul) si
+    confirma rezervarea. Cream un Payment 'succeeded' legat de rezervare; restul
+    de 50% ramane de incasat la baza sportiva.
+
+    Inlocuirea cu Stripe real: aici am crea un PaymentIntent si am confirma
+    rezervarea abia dupa webhook-ul de succes.
+    """
+    now = datetime.now(timezone.utc)
+    amount = booking.deposit_amount if booking.deposit_amount is not None else compute_deposit(booking.total_price)
+    payment = Payment(
+        booking_id=booking.id,
+        amount=amount,
+        currency=booking.currency,
+        status=PaymentStatus.SUCCEEDED,
+        paid_at=now,
+        stripe_payment_intent_id=f"mock_{uuid.uuid4().hex}",
+    )
+    db.add(payment)
+    booking.status = BookingStatus.CONFIRMED
+    db.add(booking)
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
 # ── Anulare ──────────────────────────────────────────────────────────────────────
 def cancel_booking(
     db: Session,
@@ -247,11 +307,25 @@ def cancel_booking(
     """
     Marcheaza rezervarea ca 'cancelled'. Pentru ca EXCLUDE se aplica doar pe
     status IN ('pending','confirmed'), anularea ELIBEREAZA automat slotul.
+    Daca exista un avans incasat (Payment 'succeeded'), il marcam 'refunded'.
     """
+    now = datetime.now(timezone.utc)
     booking.status = BookingStatus.CANCELLED
-    booking.cancelled_at = datetime.now(timezone.utc)
+    booking.cancelled_at = now
     booking.cancelled_by_id = cancelled_by_id
     db.add(booking)
+
+    # Refund avans: orice plata reusita pe aceasta rezervare devine 'refunded'.
+    paid = db.execute(
+        select(Payment).where(
+            Payment.booking_id == booking.id,
+            Payment.status == PaymentStatus.SUCCEEDED,
+        )
+    ).scalars().all()
+    for p in paid:
+        p.status = PaymentStatus.REFUNDED
+        db.add(p)
+
     db.commit()
     db.refresh(booking)
     return booking

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { listMyBookings, cancelBooking, getField, listMyMatches } from '../api/resources'
+import { listMyBookings, cancelBooking, getField, listMyMatches, payBookingDeposit } from '../api/resources'
 import { BOOKING_STATUS, fieldFormat } from '../lib/labels'
 import { formatDateTimeRo } from '../lib/booking'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -8,13 +8,27 @@ import EmptyState from '../components/ui/EmptyState'
 import { PitchIcon, UsersIcon } from '../components/ui/icons'
 import CreateMatchModal from '../components/CreateMatchModal'
 
+const CANCEL_CUTOFF_H = 24
+
 function timeRo(iso) {
   return new Date(iso).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
 }
 
-function isCancellable(b) {
+// Activa = viitoare si nu anulata/finalizata (apare la "Următoarele rezervări").
+function isUpcoming(b) {
   const active = b.status === 'pending' || b.status === 'confirmed'
   return active && new Date(b.start_time) > new Date()
+}
+
+function hoursUntil(iso) {
+  return (new Date(iso) - new Date()) / 36e5
+}
+
+// Politica de anulare (oglindeste backend-ul): pending oricand; confirmed doar cu ≥24h.
+function canCancelNow(b) {
+  if (!isUpcoming(b)) return false
+  if (b.status === 'pending') return true
+  return hoursUntil(b.start_time) >= CANCEL_CUTOFF_H
 }
 
 export default function MyBookingsPage() {
@@ -28,7 +42,9 @@ export default function MyBookingsPage() {
   const [error, setError] = useState(null)
 
   const [justBooked, setJustBooked] = useState(Boolean(location.state?.justBooked))
+  const [justConfirmed, setJustConfirmed] = useState(Boolean(location.state?.justConfirmed))
   const [cancellingId, setCancellingId] = useState(null)
+  const [payingId, setPayingId] = useState(null)
   const [actionError, setActionError] = useState(null)
 
   useEffect(() => {
@@ -67,7 +83,7 @@ export default function MyBookingsPage() {
     const up = []
     const hist = []
     for (const b of bookings) {
-      if (isCancellable(b)) up.push(b)
+      if (isUpcoming(b)) up.push(b)
       else hist.push(b)
     }
     up.sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
@@ -82,14 +98,24 @@ export default function MyBookingsPage() {
       const updated = await cancelBooking(booking.id)
       setBookings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
     } catch (err) {
-      const status = err.response?.status
       setActionError(
-        status === 409
-          ? 'Rezervarea nu mai poate fi anulată.'
-          : 'Anularea a eșuat. Încearcă din nou.',
+        err.response?.data?.detail || 'Anularea a eșuat. Încearcă din nou.',
       )
     } finally {
       setCancellingId(null)
+    }
+  }
+
+  async function handlePay(booking) {
+    setActionError(null)
+    setPayingId(booking.id)
+    try {
+      const updated = await payBookingDeposit(booking.id)
+      setBookings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
+    } catch (err) {
+      setActionError(err.response?.data?.detail || 'Plata a eșuat. Încearcă din nou.')
+    } finally {
+      setPayingId(null)
     }
   }
 
@@ -102,9 +128,12 @@ export default function MyBookingsPage() {
 
   function renderCard(b) {
     const st = BOOKING_STATUS[b.status] ?? { label: b.status, cls: 'bg-panel-2 text-slate-400' }
-    const canCancel = isCancellable(b)
+    const upcoming = isUpcoming(b)
+    const isPending = b.status === 'pending'
     const existingMatch = matchByBooking[b.id]
-    const canOpenMatch = isCancellable(b) // viitoare + activa
+    const total = Number(b.total_price)
+    const deposit = b.deposit_amount != null ? Number(b.deposit_amount) : total / 2
+    const rest = total - deposit
     return (
       <li
         key={b.id}
@@ -120,15 +149,39 @@ export default function MyBookingsPage() {
           <p className="mt-1 text-sm text-slate-300">
             {formatDateTimeRo(b.start_time)}–{timeRo(b.end_time)}
           </p>
+          {/* Avans / rest la teren */}
+          {b.status === 'confirmed' ? (
+            <p className="mt-1 text-xs text-slate-500">
+              Avans plătit: <span className="font-semibold text-slate-300">{deposit.toFixed(2)} {b.currency}</span>
+              {' · '}De plătit la teren: <span className="font-semibold text-slate-300">{rest.toFixed(2)} {b.currency}</span>
+            </p>
+          ) : isPending && upcoming ? (
+            <p className="mt-1 text-xs text-amber-300">
+              Neconfirmată — avans de plată: {deposit.toFixed(2)} {b.currency}
+            </p>
+          ) : null}
           {b.notes && <p className="mt-1 text-sm text-slate-500">{b.notes}</p>}
         </div>
 
         <div className="flex items-center gap-4 sm:flex-col sm:items-end">
           <span className="whitespace-nowrap text-lg font-extrabold text-accent-400">
-            {Number(b.total_price).toFixed(2)} {b.currency}
+            {total.toFixed(2)} {b.currency}
           </span>
-          <div className="flex items-center gap-2">
-            {canOpenMatch &&
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* Confirmare prin plata avansului */}
+            {isPending && upcoming && (
+              <button
+                type="button"
+                onClick={() => handlePay(b)}
+                disabled={payingId === b.id}
+                className="rounded-lg bg-accent-400 px-3 py-1.5 text-sm font-bold text-ink transition hover:bg-accent-300 disabled:opacity-50"
+              >
+                {payingId === b.id ? 'Se procesează…' : `Plătește avansul (${deposit.toFixed(0)} ${b.currency})`}
+              </button>
+            )}
+
+            {/* Find Party */}
+            {upcoming &&
               (existingMatch ? (
                 <Link
                   to={`/meciuri/${existingMatch.id}`}
@@ -147,7 +200,9 @@ export default function MyBookingsPage() {
                   Deschide meci
                 </button>
               ))}
-            {canCancel && (
+
+            {/* Anulare — doar daca politica permite */}
+            {canCancelNow(b) ? (
               <button
                 type="button"
                 onClick={() => handleCancel(b)}
@@ -156,6 +211,10 @@ export default function MyBookingsPage() {
               >
                 {cancellingId === b.id ? 'Se anulează…' : 'Anulează'}
               </button>
+            ) : (
+              upcoming && (
+                <span className="text-xs text-slate-500">Anulare indisponibilă (&lt;24h)</span>
+              )
             )}
           </div>
         </div>
@@ -181,16 +240,17 @@ export default function MyBookingsPage() {
         <p className="mt-1 text-slate-400">Gestionează rezervările tale curente și trecute.</p>
       </div>
 
-      {justBooked && (
+      {justConfirmed && (
         <div className="flex items-start justify-between gap-3 rounded-2xl bg-accent-400/10 px-4 py-3 text-sm font-medium text-accent-400 ring-1 ring-accent-400/20">
-          <span>✓ Rezervarea ta a fost înregistrată.</span>
-          <button
-            type="button"
-            onClick={() => setJustBooked(false)}
-            className="text-accent-400/70 hover:text-accent-400"
-          >
-            ✕
-          </button>
+          <span>✓ Rezervare confirmată! Avansul a fost plătit, restul se achită la bază.</span>
+          <button type="button" onClick={() => setJustConfirmed(false)} className="text-accent-400/70 hover:text-accent-400">✕</button>
+        </div>
+      )}
+
+      {justBooked && (
+        <div className="flex items-start justify-between gap-3 rounded-2xl bg-amber-400/10 px-4 py-3 text-sm font-medium text-amber-300 ring-1 ring-amber-400/20">
+          <span>Rezervarea ta e înregistrată, dar neconfirmată. Plătește avansul ca să o confirmi (altfel expiră).</span>
+          <button type="button" onClick={() => setJustBooked(false)} className="text-amber-300/70 hover:text-amber-300">✕</button>
         </div>
       )}
 

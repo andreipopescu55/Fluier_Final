@@ -38,6 +38,7 @@ class BookingOut(BaseModel):
     start_time: datetime
     end_time: datetime
     total_price: Decimal
+    deposit_amount: Optional[Decimal] = None  # avans (50%); restul se achita la baza
     currency: str
     status: BookingStatus
     booking_source: BookingSource

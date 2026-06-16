@@ -162,6 +162,30 @@ def get_booking(
 
 
 @router.post(
+    "/{booking_id}/pay",
+    response_model=BookingOut,
+    summary="Plateste avansul (50%) si confirma rezervarea",
+)
+def pay_deposit(
+    booking_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    booking = booking_crud.get_booking_by_id(db, booking_id)
+    if booking is None:
+        raise HTTPException(status_code=404, detail="Rezervare inexistenta")
+    # Doar proprietarul rezervarii poate plati avansul.
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Nu este rezervarea ta")
+    if booking.status != BookingStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Rezervarea nu mai e in asteptarea platii (status: {booking.status.value})",
+        )
+    return booking_crud.pay_deposit(db, booking)
+
+
+@router.post(
     "/{booking_id}/cancel",
     response_model=BookingOut,
     summary="Anuleaza o rezervare (elibereaza slotul)",
@@ -180,6 +204,15 @@ def cancel_booking(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Rezervarea este deja {booking.status.value}",
+        )
+
+    # Politica de 24h se aplica clientului (proprietarul). Adminii/super pot anula
+    # oricand (gestionare). Pending neplatit poate fi anulat oricand.
+    is_owner = booking.user_id == current_user.id
+    if is_owner and not booking_crud.owner_can_cancel(booking):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Anularea nu mai e posibila cu mai putin de {booking_crud.CANCELLATION_CUTOFF_HOURS}h inainte de ora rezervata.",
         )
 
     return booking_crud.cancel_booking(db, booking, cancelled_by_id=current_user.id)

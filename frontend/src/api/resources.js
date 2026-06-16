@@ -52,6 +52,11 @@ export function cancelBooking(bookingId) {
   return api.post(`/bookings/${bookingId}/cancel`).then((r) => r.data)
 }
 
+// Plata avansului (50%) -> confirma rezervarea. Mock, fara card real.
+export function payBookingDeposit(bookingId) {
+  return api.post(`/bookings/${bookingId}/pay`).then((r) => r.data)
+}
+
 // ── Admin: venues ────────────────────────────────────────────────
 // Bazele pe care le detin (include pending/suspended, nu doar approved).
 export function listMyVenues() {

@@ -41,6 +41,10 @@ class Booking(Base):
     total_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default=text("'RON'"))
 
+    # Avans (50% din total) platit cu cardul pentru confirmare. Restul se achita
+    # la baza sportiva. NULL pentru rezervari fara avans (ex: blocari manuale).
+    deposit_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+
     status: Mapped[BookingStatus] = mapped_column(
         SAEnum(BookingStatus, name="booking_status", create_type=False, values_callable=lambda e: [v.value for v in e]),
         nullable=False,
