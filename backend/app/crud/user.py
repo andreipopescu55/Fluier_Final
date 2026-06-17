@@ -3,7 +3,7 @@ Operatii CRUD pe User. Functiile primesc o sesiune SQLAlchemy si o folosesc;
 nu cunosc FastAPI, requesturi sau response-uri.
 """
 import uuid
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +23,16 @@ def get_by_email(db: Session, email: str) -> Optional[User]:
     # .lower() pentru ca emailurile sunt case-insensitive la matching.
     stmt = select(User).where(User.email == email.lower())
     return db.execute(stmt).scalar_one_or_none()
+
+
+def list_staff(db: Session) -> Sequence[User]:
+    """Toti utilizatorii cu rol de administrare (venue_admin / super_admin)."""
+    stmt = (
+        select(User)
+        .where(User.role != UserRole.CLIENT)
+        .order_by(User.created_at.desc())
+    )
+    return db.execute(stmt).scalars().all()
 
 
 def create(db: Session, data: UserCreate, role: UserRole = UserRole.CLIENT) -> User:

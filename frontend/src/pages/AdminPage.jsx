@@ -9,6 +9,7 @@ import FieldFormModal from '../components/admin/FieldFormModal'
 import VenueFormModal from '../components/admin/VenueFormModal'
 import SubscriptionPanel from '../components/admin/SubscriptionPanel'
 import VenueModeration from '../components/admin/VenueModeration'
+import AdminUsers from '../components/admin/AdminUsers'
 
 const VENUE_STATUS = {
   pending: { label: 'În așteptare', cls: 'bg-amber-400/15 text-amber-300' },
@@ -132,8 +133,9 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* Moderare — doar super_admin */}
+      {/* Moderare + gestionare administratori — doar super_admin */}
       {isSuperAdmin && <VenueModeration />}
+      {isSuperAdmin && <AdminUsers />}
 
       {venues.length === 0 ? (
         isSuperAdmin ? null : (

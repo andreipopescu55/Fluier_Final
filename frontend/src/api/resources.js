@@ -76,6 +76,15 @@ export function setVenueStatus(venueId, status) {
   return api.patch(`/admin/venues/${venueId}/status`, { status }).then((r) => r.data)
 }
 
+// Administratori (super-admin): listare + creare cont de staff.
+export function listAdminUsers() {
+  return api.get('/admin/users').then((r) => r.data)
+}
+
+export function createAdminUser(payload) {
+  return api.post('/admin/users', payload).then((r) => r.data)
+}
+
 export function updateVenue(venueId, payload) {
   return api.patch(`/venues/${venueId}`, payload).then((r) => r.data)
 }

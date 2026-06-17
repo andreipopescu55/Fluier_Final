@@ -10,6 +10,12 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    // host: true -> asculta pe toate interfetele (0.0.0.0), nu doar localhost.
+    // Astfel alt calculator din aceeasi retea poate intra pe http://<IP-ul-tau>:5173.
+    host: true,
+    // allowedHosts: true -> accepta orice Host header (necesar pentru tunele
+    // gen ngrok / cloudflared, care folosesc un domeniu public temporar).
+    allowedHosts: true,
     // Proxy: orice cerere catre /api o trimitem la backend-ul FastAPI (port 8001).
     // Astfel frontend-ul si backend-ul par ca ruleaza pe acelasi origin -> fara probleme CORS in dev.
     proxy: {

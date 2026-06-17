@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
-from app.crud import venue_crud, field_crud, booking_crud
+from app.crud import venue_crud, field_crud, booking_crud, user_crud
 from app.crud.booking import BookingConflictError, ensure_tz, LOCAL_TZ
 from app.models.user import User
 from app.models.field import Field
@@ -27,6 +27,7 @@ from app.schemas.booking import (
     BookingOut, BookingManualBlock, CalendarEvent, CalendarEventProps,
 )
 from app.schemas.venue import VenueOut, VenueStatusUpdate
+from app.schemas.user import UserOut, AdminUserCreate
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -189,3 +190,43 @@ def set_venue_status(
     if venue is None:
         raise HTTPException(status_code=404, detail="Venue inexistent")
     return venue_crud.set_status(db, venue, payload.status)
+
+
+# ── Gestionare administratori (DOAR super_admin) ────────────────────────────────────
+@router.get(
+    "/users",
+    response_model=list[UserOut],
+    summary="Lista administratorilor (venue_admin / super_admin)",
+)
+def list_admins(
+    current_user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    return user_crud.list_staff(db)
+
+
+@router.post(
+    "/users",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Creeaza un cont de administrator (super_admin)",
+)
+def create_admin(
+    payload: AdminUserCreate,
+    current_user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    """
+    Super-adminul creeaza direct un cont cu rol de administrare (email + parola).
+    Rolul 'client' nu e permis aici (clientii se inregistreaza singuri).
+    """
+    if payload.role == UserRole.CLIENT:
+        raise HTTPException(
+            status_code=422,
+            detail="Rolul trebuie sa fie venue_admin sau super_admin",
+        )
+    if user_crud.get_by_email(db, payload.email) is not None:
+        raise HTTPException(status_code=409, detail="Emailul este deja folosit")
+
+    # user_crud.create citeste email/full_name/phone/password din payload; rolul il dam explicit.
+    return user_crud.create(db, payload, role=payload.role)

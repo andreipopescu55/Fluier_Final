@@ -21,6 +21,16 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=128)
 
 
+class AdminUserCreate(UserBase):
+    """
+    Folosit DOAR de super_admin ca sa creeze un cont de staff (administrator).
+    Spre deosebire de UserCreate (inregistrare publica), aici rolul e ales explicit.
+    Endpoint-ul valideaza ca rolul nu e 'client'.
+    """
+    password: str = Field(..., min_length=8, max_length=128)
+    role: UserRole = UserRole.VENUE_ADMIN
+
+
 class UserUpdate(BaseModel):
     # Toate optional — userul poate actualiza doar ce vrea.
     # full_name=None inseamna "nu schimba", NU "sterge".
