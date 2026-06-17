@@ -35,6 +35,15 @@ def list_staff(db: Session) -> Sequence[User]:
     return db.execute(stmt).scalars().all()
 
 
+def set_active(db: Session, user: User, is_active: bool) -> User:
+    """Activeaza/dezactiveaza un cont. False = userul nu se mai poate autentifica."""
+    user.is_active = is_active
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def create(db: Session, data: UserCreate, role: UserRole = UserRole.CLIENT) -> User:
     """
     Creeaza un user nou cu parola hashuita.

@@ -85,6 +85,11 @@ export function createAdminUser(payload) {
   return api.post('/admin/users', payload).then((r) => r.data)
 }
 
+// Activare/dezactivare cont de administrator (super-admin).
+export function setAdminActive(userId, isActive) {
+  return api.patch(`/admin/users/${userId}/active`, { is_active: isActive }).then((r) => r.data)
+}
+
 export function updateVenue(venueId, payload) {
   return api.patch(`/venues/${venueId}`, payload).then((r) => r.data)
 }

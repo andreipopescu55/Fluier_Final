@@ -43,6 +43,11 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserActiveUpdate(BaseModel):
+    # Activare/dezactivare cont (folosit de super_admin). False = blocheaza login-ul.
+    is_active: bool
+
+
 class UserOut(UserBase):
     # model_config inlocuieste vechiul "class Config" din Pydantic v1.
     # from_attributes=True = Pydantic poate construi schema dintr-un obiect ORM

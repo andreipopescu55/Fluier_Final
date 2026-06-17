@@ -27,7 +27,7 @@ from app.schemas.booking import (
     BookingOut, BookingManualBlock, CalendarEvent, CalendarEventProps,
 )
 from app.schemas.venue import VenueOut, VenueStatusUpdate
-from app.schemas.user import UserOut, AdminUserCreate
+from app.schemas.user import UserOut, AdminUserCreate, UserActiveUpdate
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -230,3 +230,28 @@ def create_admin(
 
     # user_crud.create citeste email/full_name/phone/password din payload; rolul il dam explicit.
     return user_crud.create(db, payload, role=payload.role)
+
+
+@router.patch(
+    "/users/{user_id}/active",
+    response_model=UserOut,
+    summary="Activeaza / dezactiveaza un cont de administrator (super_admin)",
+)
+def set_user_active(
+    user_id: uuid.UUID,
+    payload: UserActiveUpdate,
+    current_user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    """
+    Dezactivarea (is_active=false) blocheaza autentificarea, fara a sterge contul.
+    Protectii: nu te poti dezactiva singur si nu poti dezactiva alt super-admin.
+    """
+    target = user_crud.get_by_id(db, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Utilizator inexistent")
+    if target.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Nu te poti dezactiva pe tine insuti")
+    if target.role == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Nu poti dezactiva un super-admin")
+    return user_crud.set_active(db, target, payload.is_active)
