@@ -10,7 +10,9 @@ import {
   buildDaySlots,
   estimatePrice,
   minutesToTime,
+  minutesToTimeWrapped,
   localISO,
+  localISOFromMinutes,
   defaultBookingDate,
   formatDateRo,
   toDateStr,
@@ -116,7 +118,8 @@ export default function BookingPage() {
       const booking = await createBooking({
         field_id: fieldId,
         start_time: localISO(date, startMin),
-        end_time: localISO(date, startMin + duration),
+        // sfarsitul poate trece de miezul noptii (ex: 23:00 + 2h = 01:00 a doua zi)
+        end_time: localISOFromMinutes(date, startMin + duration),
       })
       // Rezervarea e creata cu status pending -> trecem la pasul de plata a avansului.
       setAck(false)
@@ -323,9 +326,16 @@ export default function BookingPage() {
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Interval</dt>
                 <dd className="text-right font-semibold text-white">
-                  {startMin != null && duration != null
-                    ? `${minutesToTime(startMin)}–${minutesToTime(startMin + duration)}`
-                    : '—'}
+                  {startMin != null && duration != null ? (
+                    <>
+                      {minutesToTime(startMin)}–{minutesToTimeWrapped(startMin + duration)}
+                      {startMin + duration >= 1440 && (
+                        <span className="ml-1 text-xs font-medium text-accent-400">(+1 zi)</span>
+                      )}
+                    </>
+                  ) : (
+                    '—'
+                  )}
                 </dd>
               </div>
             </dl>

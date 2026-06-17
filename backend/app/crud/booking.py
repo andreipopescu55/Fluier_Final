@@ -8,7 +8,7 @@ Garantia NU vine din cod, ci din constraint-ul EXCLUDE de pe tabela bookings
 slotul e ocupat, prindem IntegrityError si il traducem intr-un conflict.
 """
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, time
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Sequence
 from zoneinfo import ZoneInfo
@@ -121,8 +121,13 @@ def compute_booking_price(
                 f"Nu exista regula de pret care sa acopere {cursor:%A %H:%M}"
             )
 
-        # Sfarsitul regulii, in aceeasi zi calendaristica locala.
-        rule_end_dt = datetime.combine(cursor.date(), rule.end_time, tzinfo=LOCAL_TZ)
+        # Sfarsitul regulii. end_time == 00:00 inseamna miezul noptii (24:00),
+        # deci se termina la inceputul ZILEI URMATOARE -> asa o rezervare poate
+        # trece de miezul noptii (ex: 23:00-01:00), continuand cu regula zilei urmatoare.
+        if rule.end_time == time(0, 0):
+            rule_end_dt = datetime.combine(cursor.date() + timedelta(days=1), time(0, 0), tzinfo=LOCAL_TZ)
+        else:
+            rule_end_dt = datetime.combine(cursor.date(), rule.end_time, tzinfo=LOCAL_TZ)
         segment_end = min(end_local, rule_end_dt)
 
         minutes = Decimal(int((segment_end - cursor).total_seconds() // 60))
@@ -135,9 +140,17 @@ def compute_booking_price(
 
 
 def _find_rule_for(rules: Sequence[PricingRule], dow: int, t) -> Optional[PricingRule]:
-    """Prima regula care acopera (ziua, ora): start_time <= t < end_time."""
+    """
+    Prima regula care acopera (ziua, ora): start_time <= t < end_time.
+    end_time == 00:00 inseamna miezul noptii (24:00), deci acopera pana la finalul zilei.
+    """
     for r in rules:
-        if r.day_of_week == dow and r.start_time <= t < r.end_time:
+        if r.day_of_week != dow:
+            continue
+        if r.end_time == time(0, 0):
+            if r.start_time <= t:  # pana la 24:00
+                return r
+        elif r.start_time <= t < r.end_time:
             return r
     return None
 

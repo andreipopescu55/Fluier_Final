@@ -21,11 +21,23 @@ export function timeToMinutes(t) {
   return Number(h) * 60 + Number(m)
 }
 
-// 510 -> "08:30"
+// 510 -> "08:30"   (1500 -> "25:00"; pentru afisare foloseste minutesToTimeWrapped)
 export function minutesToTime(min) {
   const h = String(Math.floor(min / 60)).padStart(2, '0')
   const m = String(min % 60).padStart(2, '0')
   return `${h}:${m}`
+}
+
+// Ca minutesToTime, dar „infasoara" peste 24h: 1500 (25:00) -> "01:00".
+// Pentru intervale care trec de miezul noptii.
+export function minutesToTimeWrapped(min) {
+  return minutesToTime(((min % 1440) + 1440) % 1440)
+}
+
+// Sfarsitul unei reguli in minute. end_time "00:00" inseamna miezul noptii (24:00).
+function ruleEndMinutes(r) {
+  const e = timeToMinutes(r.end_time)
+  return e === 0 ? 1440 : e
 }
 
 // Toate minutele de start posibile intr-o zi, derivate DIN regulile de pret
@@ -35,7 +47,7 @@ export function buildDaySlots(rules, dow, slotDuration) {
   for (const r of rules) {
     if (r.day_of_week !== dow) continue
     const start = timeToMinutes(r.start_time)
-    const end = timeToMinutes(r.end_time)
+    const end = ruleEndMinutes(r)
     for (let t = start; t + slotDuration <= end; t += slotDuration) {
       set.add(t)
     }
@@ -43,13 +55,17 @@ export function buildDaySlots(rules, dow, slotDuration) {
   return [...set].sort((a, b) => a - b)
 }
 
-// Tariful (price_per_hour) valabil la un anumit minut intr-o zi; null daca nu exista.
+// Tariful (price_per_hour) valabil la un minut dat; null daca nu exista regula.
+// Daca minute >= 1440 (dupa miezul noptii), cautam in regulile ZILEI URMATOARE.
 function rateAt(rules, dow, minute) {
+  let d = dow
+  let m = minute
+  if (m >= 1440) { d = (dow + 1) % 7; m -= 1440 }
   const r = rules.find(
     (x) =>
-      x.day_of_week === dow &&
-      timeToMinutes(x.start_time) <= minute &&
-      minute < timeToMinutes(x.end_time),
+      x.day_of_week === d &&
+      timeToMinutes(x.start_time) <= m &&
+      m < ruleEndMinutes(x),
   )
   return r ? Number(r.price_per_hour) : null
 }
@@ -70,6 +86,16 @@ export function estimatePrice(rules, dow, startMin, durationMin, slotDuration) {
 // Backend-ul il interpreteaza ca ora Bucuresti (ensure_tz), exact cum vrea userul.
 export function localISO(dateStr, minute) {
   return `${dateStr}T${minutesToTime(minute)}:00`
+}
+
+// Ca localISO, dar daca minutul depaseste 24h (ex: 1500 = 01:00 a doua zi),
+// trece in ziua urmatoare. Folosit pentru sfarsitul rezervarilor peste miezul noptii.
+export function localISOFromMinutes(dateStr, minute) {
+  const dayOffset = Math.floor(minute / 1440)
+  const m = minute % 1440
+  const d = new Date(`${dateStr}T00:00:00`)
+  d.setDate(d.getDate() + dayOffset)
+  return `${toDateStr(d)}T${minutesToTime(m)}:00`
 }
 
 // Prima data >= azi care are sloturi INCA disponibile (ca formularul sa nu

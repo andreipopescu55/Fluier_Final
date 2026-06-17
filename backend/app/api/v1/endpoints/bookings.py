@@ -40,18 +40,15 @@ def _get_bookable_field(field_id: uuid.UUID, db: Session) -> Field:
     return field
 
 
-def _validate_same_day(start_local: datetime, end_local: datetime) -> None:
-    """O rezervare trebuie sa fie in aceeasi zi calendaristica locala."""
-    last_instant = end_local - timedelta(microseconds=1)
-    if start_local.date() != last_instant.date():
-        raise HTTPException(
-            status_code=422,
-            detail="Rezervarea trebuie sa inceapa si sa se termine in aceeasi zi",
-        )
+# Plafon de siguranta pentru durata unei rezervari (permite si intervale peste
+# miezul noptii, ex: 23:00-01:00, dar evita rezervari absurde de multe zile).
+MAX_BOOKING_MINUTES = 360  # 6 ore
 
 
 def _validate_slot(field: Field, start: datetime, end: datetime) -> None:
-    """Durata respecta min_booking_minutes si e multiplu de slot_duration_minutes."""
+    """Durata respecta min_booking_minutes, e multiplu de slot_duration_minutes si <= plafon.
+    NU se cere sa fie in aceeasi zi: o rezervare poate trece peste miezul noptii
+    (ex: 23:00-01:00), atata timp cat regulile de pret acopera tot intervalul."""
     duration_min = int((end - start).total_seconds() // 60)
     if duration_min < field.min_booking_minutes:
         raise HTTPException(
@@ -62,6 +59,11 @@ def _validate_slot(field: Field, start: datetime, end: datetime) -> None:
         raise HTTPException(
             status_code=422,
             detail=f"Durata trebuie sa fie multiplu de {field.slot_duration_minutes} minute",
+        )
+    if duration_min > MAX_BOOKING_MINUTES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Durata maxima a unei rezervari este {MAX_BOOKING_MINUTES // 60} ore",
         )
 
 
@@ -99,9 +101,6 @@ def create_booking(
     if start <= datetime.now(timezone.utc):
         raise HTTPException(status_code=422, detail="Nu poti rezerva un interval din trecut")
 
-    start_local = start.astimezone(LOCAL_TZ)
-    end_local = end.astimezone(LOCAL_TZ)
-    _validate_same_day(start_local, end_local)
     _validate_slot(field, start, end)
 
     # Pretul se calculeaza automat din PricingRules.

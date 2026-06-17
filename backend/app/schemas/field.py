@@ -18,8 +18,10 @@ class PricingRuleBase(BaseModel):
 
     @model_validator(mode="after")
     def check_time_order(self) -> "PricingRuleBase":
-        if self.start_time >= self.end_time:
-            raise ValueError("start_time trebuie sa fie inainte de end_time")
+        # end_time == 00:00 inseamna "miezul noptii / 24:00" -> program pana la finalul
+        # zilei (permite intervale care se intind pana la / peste miezul noptii).
+        if self.end_time != time(0, 0) and self.start_time >= self.end_time:
+            raise ValueError("start_time trebuie sa fie inainte de end_time (sau end_time = 00:00 pentru miezul noptii)")
         return self
 
 

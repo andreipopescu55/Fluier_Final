@@ -105,7 +105,8 @@ class PricingRule(Base):
 
     __table_args__ = (
         CheckConstraint("day_of_week BETWEEN 0 AND 6", name="chk_day_of_week"),
-        CheckConstraint("end_time > start_time", name="chk_time_range"),
+        # end_time = 00:00 inseamna miezul noptii (24:00) -> program pana noaptea tarziu.
+        CheckConstraint("end_time > start_time OR end_time = '00:00:00'", name="chk_time_range"),
         CheckConstraint("price_per_hour > 0", name="chk_price_positive"),
     )
 
