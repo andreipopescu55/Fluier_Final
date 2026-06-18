@@ -2,9 +2,17 @@ import { useEffect, useState } from 'react'
 import { listFieldPricingManage, addPricingRule, deletePricingRule } from '../../api/resources'
 
 const DAY_LABELS = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică']
+const DAY_SHORT = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du']
 const hhmm = (t) => (t ? t.slice(0, 5) : '')
 // end_time "00:00" inseamna miezul noptii (24:00) -> afisam "24:00", nu "00:00".
 const endLabel = (t) => (hhmm(t) === '00:00' ? '24:00' : hhmm(t))
+
+const pad = (n) => String(n).padStart(2, '0')
+// minute -> eticheta afisata (1440 = miezul noptii = "24:00")
+const minLabel = (m) => (m === 1440 ? '24:00' : `${pad(Math.floor(m / 60))}:00`)
+// minute -> ora trimisa la backend "HH:00:00" (1440/0 -> "00:00:00" = miezul noptii)
+const toServer = (m) => `${pad(Math.floor((m % 1440) / 60))}:00:00`
+
 const inputCls =
   'rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm text-slate-200 outline-none focus:border-accent-400 [color-scheme:dark]'
 const labelCls = 'mb-1 block text-xs font-semibold text-slate-300'
@@ -14,9 +22,13 @@ export default function PricingPanel({ fieldId }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const [form, setForm] = useState({ day_of_week: 0, start_time: '08:00', end_time: '12:00', price_per_hour: '' })
+  const [days, setDays] = useState([0, 1, 2, 3, 4]) // zilele selectate (indici)
+  const [startMin, setStartMin] = useState(16 * 60) // 16:00
+  const [endMin, setEndMin] = useState(1440) // 24:00
+  const [price, setPrice] = useState('')
   const [adding, setAdding] = useState(false)
   const [formError, setFormError] = useState(null)
+  const [formOk, setFormOk] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
@@ -32,47 +44,67 @@ export default function PricingPanel({ fieldId }) {
     }
   }, [fieldId])
 
-  function set(key, value) {
-    setForm((f) => ({ ...f, [key]: value }))
+  function toggleDay(i) {
+    setDays((prev) => (prev.includes(i) ? prev.filter((d) => d !== i) : [...prev, i].sort()))
+  }
+
+  function changeStart(m) {
+    setStartMin(m)
+    if (endMin <= m) setEndMin(m + 60) // sfarsitul ramane mereu dupa inceput
+  }
+
+  function sortRules(list) {
+    return [...list].sort(
+      (a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time),
+    )
   }
 
   async function handleAdd(e) {
     e.preventDefault()
     setFormError(null)
-    // end_time "00:00" = miezul noptii (24:00) -> valid ca sfarsit de program.
-    if (form.end_time !== '00:00' && form.start_time >= form.end_time) {
-      setFormError('Ora de început trebuie să fie înainte de cea de sfârșit.')
+    setFormOk(null)
+    if (days.length === 0) {
+      setFormError('Alege cel puțin o zi.')
       return
     }
-    const price = Number(form.price_per_hour)
-    if (!price || price <= 0) {
+    const p = Number(price)
+    if (!p || p <= 0) {
       setFormError('Introdu un preț valid (> 0).')
       return
     }
+
     setAdding(true)
-    try {
-      const created = await addPricingRule(fieldId, {
-        day_of_week: Number(form.day_of_week),
-        start_time: form.start_time,
-        end_time: form.end_time,
-        price_per_hour: price,
-        currency: 'RON',
-      })
-      setRules((prev) =>
-        [...prev, created].sort(
-          (a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time),
-        ),
-      )
-      set('price_per_hour', '')
-    } catch (err) {
-      setFormError(
-        err.response?.status === 409
-          ? 'Se suprapune cu o regulă existentă pe aceeași zi.'
-          : 'Adăugarea a eșuat. Verifică datele.',
-      )
-    } finally {
-      setAdding(false)
+    const payloadBase = { start_time: toServer(startMin), end_time: toServer(endMin), price_per_hour: p, currency: 'RON' }
+    const added = []
+    const skipped = []
+    let otherError = false
+    for (const day of days) {
+      try {
+        const created = await addPricingRule(fieldId, { ...payloadBase, day_of_week: day })
+        added.push(created)
+      } catch (err) {
+        if (err.response?.status === 409) skipped.push(day)
+        else otherError = true
+      }
     }
+    if (added.length) setRules((prev) => sortRules([...prev, ...added]))
+
+    const parts = []
+    if (added.length) parts.push(`Adăugat pe ${added.length} ${added.length === 1 ? 'zi' : 'zile'}.`)
+    if (skipped.length) {
+      parts.push(
+        `${skipped.length === 1 ? 'O zi avea' : `${skipped.length} zile aveau`} deja interval acolo (${skipped.map((d) => DAY_SHORT[d]).join(', ')}) — sărit${skipped.length === 1 ? 'ă' : 'e'}.`,
+      )
+    }
+    if (otherError) parts.push('Unele zile au eșuat. Încearcă din nou.')
+    const msg = parts.join(' ')
+    if (added.length) {
+      setFormOk(msg)
+      setPrice('')
+    } else {
+      setFormError(msg || 'Adăugarea a eșuat.')
+    }
+    setAdding(false)
   }
 
   async function handleDelete(rule) {
@@ -92,6 +124,10 @@ export default function PricingPanel({ fieldId }) {
     day,
     rules: rules.filter((r) => r.day_of_week === day),
   }))
+
+  // Optiuni ore: start 00:00..23:00; sfarsit (start+1h)..23:00 + 24:00.
+  const startOptions = Array.from({ length: 24 }, (_, h) => h * 60)
+  const endOptions = [...Array.from({ length: 24 }, (_, h) => h * 60).filter((m) => m > startMin), 1440]
 
   return (
     <section className="rounded-2xl bg-panel p-4 ring-1 ring-line sm:p-6">
@@ -138,26 +174,60 @@ export default function PricingPanel({ fieldId }) {
         </div>
       )}
 
-      {/* Formular adăugare */}
+      {/* Formular adăugare — zile multiple + ore din dropdown (din ora in ora) */}
       <form onSubmit={handleAdd} className="mt-6 border-t border-line pt-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <span className={labelCls}>Zile</span>
+        <div className="flex flex-wrap gap-1.5">
+          {DAY_SHORT.map((d, i) => {
+            const on = days.includes(i)
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => toggleDay(i)}
+                className={[
+                  'min-w-[44px] rounded-lg px-2 py-1.5 text-sm font-semibold transition',
+                  on ? 'bg-accent-400 text-ink' : 'bg-panel-2 text-slate-300 hover:text-white',
+                ].join(' ')}
+              >
+                {d}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {[
+            ['Zile lucrătoare', [0, 1, 2, 3, 4]],
+            ['Weekend', [5, 6]],
+            ['Toate', [0, 1, 2, 3, 4, 5, 6]],
+          ].map(([label, set]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setDays(set)}
+              className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-slate-400 transition hover:border-line-2 hover:text-white"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
           <label className="block">
-            <span className={labelCls}>Zi</span>
-            <select value={form.day_of_week} onChange={(e) => set('day_of_week', e.target.value)} className={inputCls}>
-              {DAY_LABELS.map((label, d) => (
-                <option key={d} value={d}>
-                  {label}
-                </option>
+            <span className={labelCls}>De la</span>
+            <select value={startMin} onChange={(e) => changeStart(Number(e.target.value))} className={inputCls}>
+              {startOptions.map((m) => (
+                <option key={m} value={m}>{minLabel(m)}</option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className={labelCls}>De la</span>
-            <input type="time" value={form.start_time} onChange={(e) => set('start_time', e.target.value)} className={inputCls} />
-          </label>
-          <label className="block">
             <span className={labelCls}>Până la</span>
-            <input type="time" value={form.end_time} onChange={(e) => set('end_time', e.target.value)} className={inputCls} />
+            <select value={endMin} onChange={(e) => setEndMin(Number(e.target.value))} className={inputCls}>
+              {endOptions.map((m) => (
+                <option key={m} value={m}>{minLabel(m)}</option>
+              ))}
+            </select>
           </label>
           <label className="block">
             <span className={labelCls}>Preț/oră</span>
@@ -165,8 +235,8 @@ export default function PricingPanel({ fieldId }) {
               type="number"
               min="1"
               step="0.01"
-              value={form.price_per_hour}
-              onChange={(e) => set('price_per_hour', e.target.value)}
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
               placeholder="100"
               className={`w-28 ${inputCls}`}
             />
@@ -176,9 +246,15 @@ export default function PricingPanel({ fieldId }) {
             disabled={adding}
             className="rounded-lg bg-accent-400 px-4 py-2 text-sm font-bold text-ink transition hover:bg-accent-300 disabled:opacity-50"
           >
-            {adding ? 'Se adaugă…' : 'Adaugă tarif'}
+            {adding ? 'Se adaugă…' : `Adaugă pe ${days.length} ${days.length === 1 ? 'zi' : 'zile'}`}
           </button>
         </div>
+
+        {formOk && (
+          <p className="mt-3 rounded-lg bg-accent-400/10 px-3 py-2 text-sm font-medium text-accent-400 ring-1 ring-accent-400/20">
+            ✓ {formOk}
+          </p>
+        )}
         {formError && (
           <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 ring-1 ring-red-500/20">
             {formError}
