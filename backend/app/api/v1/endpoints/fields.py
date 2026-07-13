@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, require_role
-from app.crud import venue_crud, field_crud, booking_crud
+from app.crud import venue_crud, field_crud, booking_crud, notification_crud
 from app.crud.booking import LOCAL_TZ
 from app.models.user import User
 from app.models.enums import UserRole, VenueStatus, BookingStatus
@@ -117,8 +117,16 @@ def create_venue_field(
     ),
     db: Session = Depends(get_db),
 ):
-    _ensure_owner_of_venue(venue_id, db, current_user)
-    return field_crud.create_field(db, venue_id, payload)
+    venue = _ensure_owner_of_venue(venue_id, db, current_user)
+    field = field_crud.create_field(db, venue_id, payload)
+
+    # Inbox super-admin: un venue_admin a adaugat un teren.
+    notification_crud.notify_field_change(
+        db, actor=current_user, venue=venue,
+        field_name=field.name, action="a adăugat terenul", field_id=field.id,
+    )
+
+    return field
 
 
 # ── Fields: rute pe item (sub /fields/{field_id}) ──────────────────────────────
@@ -175,7 +183,16 @@ def update_field(
     db: Session = Depends(get_db),
 ):
     field = _ensure_owner_of_field(field_id, db, current_user)
-    return field_crud.update_field(db, field, payload)
+    field = field_crud.update_field(db, field, payload)
+
+    # Inbox super-admin: un venue_admin a modificat un teren.
+    venue = venue_crud.get_by_id(db, field.venue_id)
+    notification_crud.notify_field_change(
+        db, actor=current_user, venue=venue,
+        field_name=field.name, action="a modificat terenul", field_id=field.id,
+    )
+
+    return field
 
 
 @fields_router.delete(
@@ -197,7 +214,16 @@ def delete_field(
             detail="Terenul are rezervări și nu poate fi șters. Dezactivează-l "
                    "(debifează „Activ”) ca să-l ascunzi clienților.",
         )
+    # Datele terenului, retinute inainte de stergere (dupa, obiectul e invalid).
+    field_name, venue_id = field.name, field.venue_id
     field_crud.delete_field(db, field)
+
+    # Inbox super-admin: un venue_admin a sters un teren.
+    venue = venue_crud.get_by_id(db, venue_id)
+    notification_crud.notify_field_change(
+        db, actor=current_user, venue=venue,
+        field_name=field_name, action="a șters terenul",
+    )
 
 
 # ── PricingRules ───────────────────────────────────────────────────────────────
@@ -240,7 +266,7 @@ def add_pricing_rule(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_owner_of_field(field_id, db, current_user)
+    field = _ensure_owner_of_field(field_id, db, current_user)
 
     # Business rule: nu poti avea 2 reguli care se suprapun pe aceeasi zi.
     overlap = field_crud.find_overlapping_rule(
@@ -259,7 +285,16 @@ def add_pricing_rule(
             ),
         )
 
-    return field_crud.create_pricing_rule(db, field_id, payload)
+    rule = field_crud.create_pricing_rule(db, field_id, payload)
+
+    # Inbox super-admin: tarifele fac parte din "modificari la terenuri".
+    venue = venue_crud.get_by_id(db, field.venue_id)
+    notification_crud.notify_field_change(
+        db, actor=current_user, venue=venue,
+        field_name=field.name, action="a modificat tarifele terenului", field_id=field.id,
+    )
+
+    return rule
 
 
 @pricing_router.delete(
@@ -276,5 +311,12 @@ def delete_pricing_rule(
     if rule is None:
         raise HTTPException(status_code=404, detail="Regula inexistenta")
     # Verifica ownership via field -> venue
-    _ensure_owner_of_field(rule.field_id, db, current_user)
+    field = _ensure_owner_of_field(rule.field_id, db, current_user)
     field_crud.delete_pricing_rule(db, rule)
+
+    # Inbox super-admin: stergerea unui tarif e tot o modificare la teren.
+    venue = venue_crud.get_by_id(db, field.venue_id)
+    notification_crud.notify_field_change(
+        db, actor=current_user, venue=venue,
+        field_name=field.name, action="a modificat tarifele terenului", field_id=field.id,
+    )

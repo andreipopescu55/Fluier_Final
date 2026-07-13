@@ -44,6 +44,27 @@ def set_active(db: Session, user: User, is_active: bool) -> User:
     return user
 
 
+def update_profile(db: Session, user: User, *, full_name=None, phone=None) -> User:
+    """Actualizeaza datele de profil (doar campurile trimise; None = nu schimba)."""
+    if full_name is not None:
+        user.full_name = full_name
+    if phone is not None:
+        user.phone = phone
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def set_password(db: Session, user: User, new_hash: str) -> User:
+    """Seteaza un password_hash nou (hashuit deja de endpoint)."""
+    user.password_hash = new_hash
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def create(db: Session, data: UserCreate, role: UserRole = UserRole.CLIENT) -> User:
     """
     Creeaza un user nou cu parola hashuita.

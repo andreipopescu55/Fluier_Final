@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { listMyBookings, cancelBooking, getField, listMyMatches, payBookingDeposit } from '../api/resources'
-import { BOOKING_STATUS, fieldFormat } from '../lib/labels'
+import { listMyBookings, cancelBooking, getField, listMyMatches, payBookingDeposit, listVenues } from '../api/resources'
+import { BOOKING_STATUS } from '../lib/labels'
 import { formatDateTimeRo } from '../lib/booking'
 import { Skeleton } from '../components/ui/Skeleton'
 import EmptyState from '../components/ui/EmptyState'
@@ -36,6 +36,7 @@ export default function MyBookingsPage() {
   const navigate = useNavigate()
   const [bookings, setBookings] = useState([])
   const [fields, setFields] = useState({})
+  const [venues, setVenues] = useState({}) // venue_id -> baza (pentru numele bazei pe card)
   const [matchByBooking, setMatchByBooking] = useState({}) // booking_id -> meci
   const [modalBooking, setModalBooking] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -72,6 +73,17 @@ export default function MyBookingsPage() {
         const map = {}
         ms.forEach((m) => { map[m.booking_id] = m })
         setMatchByBooking(map)
+      })
+      .catch(() => {})
+
+    // Bazele -> map dupa id, ca sa afisam numele bazei pe card (in loc de format).
+    listVenues()
+      .then((vs) => {
+        if (!active) return
+        const arr = Array.isArray(vs) ? vs : (vs?.items ?? [])
+        const map = {}
+        arr.forEach((v) => { map[v.id] = v })
+        setVenues(map)
       })
       .catch(() => {})
     return () => {
@@ -122,8 +134,8 @@ export default function MyBookingsPage() {
   function fieldLabel(fieldId) {
     const f = fields[fieldId]
     if (!f) return 'Teren'
-    const fmt = fieldFormat(f)
-    return fmt ? `${f.name} · ${fmt}` : f.name
+    const venueName = venues[f.venue_id]?.name
+    return venueName ? `${f.name} · ${venueName}` : f.name
   }
 
   function renderCard(b) {

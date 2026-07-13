@@ -89,6 +89,8 @@ export default function BookingPage() {
 
   const slotDuration = field?.slot_duration_minutes ?? 30
   const minBooking = field?.min_booking_minutes ?? 60
+  // Administratorul de baza nu poate rezerva terenuri (doar gestiune).
+  const isVenueAdmin = user?.role === 'venue_admin'
   const dow = date ? dowFromDate(date) : null
 
   const slots = useMemo(
@@ -110,6 +112,10 @@ export default function BookingPage() {
       ? estimatePrice(rules, dow, startMin, duration, slotDuration)
       : null
 
+  // Intervalul ales [start, start+durata) nu trebuie sa se suprapuna cu o rezervare existenta.
+  const selectionOverlaps =
+    startMin != null && duration != null && isSlotTaken(occupied, startMin, duration)
+
   function resetSelection() {
     setStartMin(null)
     setDuration(null)
@@ -125,11 +131,16 @@ export default function BookingPage() {
 
   async function handleBooking() {
     setFormError(null)
+    if (isVenueAdmin) return
     if (!user) {
       navigate('/login', { state: { from: location } })
       return
     }
     if (startMin == null || duration == null || price == null) return
+    if (selectionOverlaps) {
+      setFormError('Intervalul ales se suprapune cu o rezervare existentă. Alege altă durată.')
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -267,7 +278,14 @@ export default function BookingPage() {
                       title={isTaken ? 'ocupat' : undefined}
                       onClick={() => {
                         setStartMin(m)
-                        setDuration((d) => d ?? minBooking)
+                        // Pastram durata doar daca incape (tarif + fara suprapunere); altfel cerem re-alegere.
+                        setDuration((d) => {
+                          const cand = d ?? minBooking
+                          const fits =
+                            estimatePrice(rules, dow, m, cand, slotDuration) != null &&
+                            !isSlotTaken(occupied, m, cand)
+                          return fits ? cand : null
+                        })
                         setFormError(null)
                       }}
                       className={[
@@ -296,13 +314,21 @@ export default function BookingPage() {
               <div className="flex flex-wrap gap-2">
                 {durationOptions.map((d) => {
                   const est = estimatePrice(rules, dow, startMin, d, slotDuration)
-                  const ok = est != null
+                  const overlaps = isSlotTaken(occupied, startMin, d)
+                  const ok = est != null && !overlaps
                   const selected = d === duration
                   return (
                     <button
                       key={d}
                       type="button"
                       disabled={!ok}
+                      title={
+                        overlaps
+                          ? 'Se suprapune cu o rezervare existentă'
+                          : est == null
+                            ? 'Fără tarif pentru tot intervalul'
+                            : undefined
+                      }
                       onClick={() => setDuration(d)}
                       className={[
                         'rounded-lg px-3.5 py-2 text-sm font-semibold transition',
@@ -371,17 +397,25 @@ export default function BookingPage() {
               </p>
             )}
 
-            <button
-              onClick={handleBooking}
-              disabled={submitting || startMin == null || duration == null || price == null}
-              className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent-400 px-4 py-3 text-sm font-bold text-ink transition hover:bg-accent-300 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {submitting ? 'Se rezervă…' : user ? 'Rezervă' : 'Autentifică-te ca să rezervi'}
-              {!submitting && <ArrowRightIcon className="h-4 w-4" />}
-            </button>
-            <p className="mt-3 text-center text-xs text-slate-500">
-              Confirmi rezervarea plătind un avans de <span className="font-semibold text-slate-300">50%</span>; restul la teren.
-            </p>
+            {isVenueAdmin ? (
+              <p className="mt-5 rounded-lg bg-panel-2 px-3 py-3 text-center text-sm font-medium text-slate-400 ring-1 ring-line">
+                Conturile de administrator nu pot rezerva terenuri.
+              </p>
+            ) : (
+              <>
+                <button
+                  onClick={handleBooking}
+                  disabled={submitting || startMin == null || duration == null || price == null || selectionOverlaps}
+                  className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent-400 px-4 py-3 text-sm font-bold text-ink transition hover:bg-accent-300 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {submitting ? 'Se rezervă…' : user ? 'Rezervă' : 'Autentifică-te ca să rezervi'}
+                  {!submitting && <ArrowRightIcon className="h-4 w-4" />}
+                </button>
+                <p className="mt-3 text-center text-xs text-slate-500">
+                  Confirmi rezervarea plătind un avans de <span className="font-semibold text-slate-300">50%</span>; restul la teren.
+                </p>
+              </>
+            )}
           </div>
         </aside>
       </div>

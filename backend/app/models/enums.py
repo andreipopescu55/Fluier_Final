@@ -63,9 +63,21 @@ class PaymentStatus(str, enum.Enum):
 
 
 class NotificationType(str, enum.Enum):
+    # Client — rezervarile lui
     BOOKING_CONFIRMED = "booking_confirmed"
     BOOKING_CANCELLED = "booking_cancelled"
     BOOKING_REMINDER = "booking_reminder"
+    # Find Party — organizator si jucatori
+    MATCH_JOIN_REQUEST = "match_join_request"          # organizator: cineva vrea sa intre
+    MATCH_REQUEST_APPROVED = "match_request_approved"  # jucator: ai fost acceptat
+    MATCH_REQUEST_REJECTED = "match_request_rejected"  # jucator: respins / scos
+    MATCH_PLAYER_LEFT = "match_player_left"            # organizator: cineva a iesit
+    MATCH_CANCELLED = "match_cancelled"                # jucatori: meciul a fost anulat
+    # Venue admin — activitate pe terenurile lui
+    VENUE_NEW_BOOKING = "venue_new_booking"            # cineva a rezervat un interval
+    VENUE_BOOKING_CANCELLED = "venue_booking_cancelled"  # cineva a anulat
+    # Super admin — ce modifica adminii la terenuri
+    ADMIN_FIELD_CHANGE = "admin_field_change"
 
 
 # ── Find Party (meciuri deschise) ────────────────────────────────────────────────

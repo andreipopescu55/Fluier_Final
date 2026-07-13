@@ -56,6 +56,14 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  // Re-citeste profilul de pe server (dupa o modificare din pagina de profil),
+  // ca navbar-ul si restul UI-ului sa arate imediat datele noi.
+  const refreshUser = useCallback(async () => {
+    const res = await api.get('/auth/me')
+    setUser(res.data)
+    return res.data
+  }, [])
+
   const value = {
     user,
     loading,
@@ -63,6 +71,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    refreshUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

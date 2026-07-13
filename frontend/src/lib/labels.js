@@ -4,7 +4,7 @@
 export const SPORT_LABELS = {
   football_5: 'Fotbal 5+1',
   football_7: 'Fotbal 7+1',
-  football_11: 'Fotbal 11+1',
+  football_11: 'Fotbal 10+1',
 }
 
 export const SURFACE_LABELS = {
@@ -17,7 +17,7 @@ export const SURFACE_LABELS = {
 export const SPORT_BY_LABEL = {
   'Fotbal 5+1': 'football_5',
   'Fotbal 7+1': 'football_7',
-  'Fotbal 11+1': 'football_11',
+  'Fotbal 10+1': 'football_11',
 }
 
 // Formatul afisat al unui teren: recomandarea libera daca exista, altfel eticheta

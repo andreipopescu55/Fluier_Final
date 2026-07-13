@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, get_current_user_optional
-from app.crud import booking_crud, match_crud
+from app.crud import booking_crud, match_crud, notification_crud
 from app.crud.match import (
     MatchError, MatchFullError, AlreadyParticipantError, NotParticipantError,
 )
@@ -204,6 +204,10 @@ def join_match(
         match_crud.request_join(db, match=match, user_id=current_user.id)
     except AlreadyParticipantError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+    # Inbox: organizatorul afla ca are o cerere noua de aprobat.
+    notification_crud.notify_join_request(db, match, requester=current_user)
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
 
 
@@ -216,10 +220,18 @@ def leave_match(
     match = match_crud.get_match_by_id(db, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Meci inexistent")
+    # Retinem starea DINAINTE de iesire, ca mesajul catre organizator sa fie
+    # corect: "a iesit din meci" (era aprobat) vs "si-a retras cererea".
+    mine = next((p for p in match.participants if p.user_id == current_user.id), None)
+    was_approved = mine is not None and mine.status == ParticipantStatus.APPROVED
     try:
         match_crud.leave_match(db, match=match, user_id=current_user.id)
     except NotParticipantError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+    # Inbox: organizatorul afla ca cineva a iesit / si-a retras cererea.
+    notification_crud.notify_player_left(db, match, player=current_user, was_approved=was_approved)
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
 
 
@@ -249,6 +261,10 @@ def approve(
         raise HTTPException(status_code=404, detail=str(exc))
     except MatchError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+    # Inbox: jucatorul afla ca a fost acceptat.
+    notification_crud.notify_request_approved(db, match, player_id=participant_user_id)
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
 
 
@@ -264,10 +280,19 @@ def reject(
     if match is None:
         raise HTTPException(status_code=404, detail="Meci inexistent")
     _require_organizer(match, current_user)
+    # Starea dinainte decide mesajul: "scos din meci" (aprobat) vs "cerere respinsa".
+    target = next((p for p in match.participants if p.user_id == participant_user_id), None)
+    was_approved = target is not None and target.status == ParticipantStatus.APPROVED
     try:
         match_crud.reject_participant(db, match=match, participant_user_id=participant_user_id)
     except NotParticipantError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+    # Inbox: jucatorul afla ca a fost respins / scos.
+    notification_crud.notify_request_rejected(
+        db, match, player_id=participant_user_id, was_approved=was_approved
+    )
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
 
 
@@ -281,5 +306,14 @@ def cancel(
     if match is None:
         raise HTTPException(status_code=404, detail="Meci inexistent")
     _require_organizer(match, current_user)
+    # Cine trebuie anuntat: toti cei cu cerere activa (aprobati + in asteptare).
+    affected_ids = [
+        p.user_id for p in match.participants
+        if p.status in (ParticipantStatus.APPROVED, ParticipantStatus.REQUESTED)
+    ]
     match_crud.cancel_match(db, match=match)
+
+    # Inbox: jucatorii afla ca meciul a fost anulat.
+    notification_crud.notify_match_cancelled(db, match, participant_ids=affected_ids)
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)

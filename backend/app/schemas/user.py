@@ -43,6 +43,13 @@ class UserLogin(BaseModel):
     password: str
 
 
+class PasswordChange(BaseModel):
+    # Schimbarea parolei cere parola CURENTA — un token furat nu e suficient
+    # ca sa blochezi proprietarul contului in afara lui.
+    current_password: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
 class UserActiveUpdate(BaseModel):
     # Activare/dezactivare cont (folosit de super_admin). False = blocheaza login-ul.
     is_active: bool

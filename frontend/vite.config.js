@@ -9,7 +9,10 @@ export default defineConfig({
     tailwindcss(), // pluginul oficial Tailwind v4 (proceseaza @import "tailwindcss")
   ],
   server: {
-    port: 5173,
+    // Portul poate fi suprascris prin variabila de mediu PORT (ex: preview-ul
+    // din Claude Code ruleaza pe alt port, in paralel cu serverul tau de dev).
+    // API-ul merge oricum prin proxy-ul de mai jos, deci portul nu conteaza.
+    port: Number(process.env.PORT) || 5173,
     // host: true -> asculta pe toate interfetele (0.0.0.0), nu doar localhost.
     // Astfel alt calculator din aceeasi retea poate intra pe http://<IP-ul-tau>:5173.
     host: true,

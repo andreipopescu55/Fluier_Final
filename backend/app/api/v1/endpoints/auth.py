@@ -7,10 +7,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, verify_password, hash_password
 from app.crud import user_crud
 from app.models.user import User
-from app.schemas.user import UserCreate, UserOut
+from app.schemas.user import UserCreate, UserOut, UserUpdate, PasswordChange
 from app.schemas.token import Token
 
 
@@ -83,3 +83,47 @@ def login(
 def me(current_user: User = Depends(get_current_user)) -> User:
     """Util pentru frontend ca sa stie cine e logat dupa un refresh de pagina."""
     return current_user
+
+
+@router.patch(
+    "/me",
+    response_model=UserOut,
+    summary="Actualizeaza profilul curent (nume, telefon)",
+)
+def update_me(
+    payload: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Emailul si rolul NU se schimba de aici — emailul e identitatea contului,
+    rolul e gestionat doar de super_admin."""
+    return user_crud.update_profile(
+        db, current_user, full_name=payload.full_name, phone=payload.phone
+    )
+
+
+@router.post(
+    "/change-password",
+    response_model=UserOut,
+    summary="Schimba parola contului curent",
+)
+def change_password(
+    payload: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Cere parola curenta (un token furat nu e de ajuns) si respinge conturile
+    create doar prin OAuth (nu au parola de schimbat).
+    """
+    if current_user.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contul e creat prin OAuth si nu are parola",
+        )
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Parola curenta este incorecta",
+        )
+    return user_crud.set_password(db, current_user, hash_password(payload.new_password))

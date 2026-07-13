@@ -45,6 +45,7 @@ export default function MatchDetailPage() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState(null)
+  const [removeTarget, setRemoveTarget] = useState(null) // jucatorul de scos (pentru confirmare)
 
   useEffect(() => {
     let active = true
@@ -65,11 +66,20 @@ export default function MatchDetailPage() {
     try {
       const updated = await fn()
       setMatch(updated)
+      return true
     } catch (err) {
       setActionError(err.response?.data?.detail || 'Acțiunea a eșuat. Încearcă din nou.')
+      return false
     } finally {
       setBusy(false)
     }
+  }
+
+  // Confirmare la scoaterea unui jucator din echipa.
+  async function confirmRemove() {
+    if (!removeTarget) return
+    const ok = await run(() => rejectParticipant(match.id, removeTarget.user_id))
+    if (ok) setRemoveTarget(null)
   }
 
   if (loading) {
@@ -86,6 +96,7 @@ export default function MatchDetailPage() {
 
   const st = MATCH_STATUS[match.status] ?? { label: match.status, cls: 'bg-panel-2 text-slate-400' }
   const isPast = new Date(match.start_time) <= new Date()
+  const isVenueAdmin = user?.role === 'venue_admin'
   const canJoin = !match.is_organizer && match.status === 'open' && !isPast
 
   return (
@@ -166,6 +177,10 @@ export default function MatchDetailPage() {
               >
                 Autentifică-te ca să te alături
               </Link>
+            ) : isVenueAdmin ? (
+              <span className="text-sm font-semibold text-slate-400">
+                Conturile de administrator nu participă la meciuri.
+              </span>
             ) : match.is_organizer ? (
               match.status !== 'cancelled' && (
                 <button
@@ -285,9 +300,27 @@ export default function MatchDetailPage() {
             </span>
           </li>
           {match.participants.map((p) => (
-            <li key={p.user_id} className="flex items-center gap-3 rounded-xl bg-panel-2 px-3 py-2.5">
-              <Avatar name={p.full_name} />
-              <span className="font-semibold text-white">{p.full_name}</span>
+            <li
+              key={p.user_id}
+              className="flex items-center justify-between gap-3 rounded-xl bg-panel-2 px-3 py-2.5"
+            >
+              <div className="flex items-center gap-3">
+                <Avatar name={p.full_name} />
+                <span className="font-semibold text-white">{p.full_name}</span>
+              </div>
+              {/* Organizatorul poate scoate un jucator aprobat -> elibereaza locul. */}
+              {match.is_organizer && match.status !== 'cancelled' && (
+                <button
+                  type="button"
+                  onClick={() => setRemoveTarget(p)}
+                  disabled={busy}
+                  title="Scoate din echipă"
+                  aria-label={`Scoate ${p.full_name} din echipă`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-sm font-semibold text-slate-300 transition hover:border-red-500/40 hover:text-red-400 disabled:opacity-50"
+                >
+                  <CloseIcon className="h-4 w-4" /> Scoate
+                </button>
+              )}
             </li>
           ))}
           {match.spots_left > 0 &&
@@ -304,6 +337,43 @@ export default function MatchDetailPage() {
             ))}
         </ul>
       </section>
+
+      {/* Confirmare scoatere jucator */}
+      {removeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-panel shadow-xl ring-1 ring-line">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-white">Scoți jucătorul din echipă?</h3>
+              <p className="mt-2 text-sm text-slate-400">
+                <b className="text-white">{removeTarget.full_name}</b> va fi scos din echipă, iar locul lui devine liber.
+              </p>
+              {actionError && (
+                <p className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 ring-1 ring-red-500/20">
+                  {actionError}
+                </p>
+              )}
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRemoveTarget(null)}
+                  disabled={busy}
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-300 transition hover:text-white disabled:opacity-50"
+                >
+                  Anulează
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmRemove}
+                  disabled={busy}
+                  className="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:opacity-50"
+                >
+                  {busy ? 'Se scoate…' : 'Scoate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

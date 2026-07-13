@@ -10,6 +10,7 @@ import MyBookingsPage from './pages/MyBookingsPage'
 import MatchesPage from './pages/MatchesPage'
 import MatchDetailPage from './pages/MatchDetailPage'
 import AdminPage from './pages/AdminPage'
+import ProfilePage from './pages/ProfilePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 
@@ -37,6 +38,16 @@ function App() {
               element={
                 <ProtectedRoute roles={['client']}>
                   <MyBookingsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Profilul contului — orice user logat, indiferent de rol */}
+            <Route
+              path="/profil"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
                 </ProtectedRoute>
               }
             />

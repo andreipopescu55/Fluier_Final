@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
-from app.crud import venue_crud, field_crud, booking_crud
+from app.crud import venue_crud, field_crud, booking_crud, notification_crud
 from app.crud.booking import BookingConflictError, NoPricingError, LOCAL_TZ, ensure_tz
 from app.models.user import User
 from app.models.field import Field
@@ -128,6 +128,13 @@ def create_booking(
     except BookingConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
+    # Inbox: adminul bazei afla imediat ca a aparut o rezervare noua.
+    venue = venue_crud.get_by_id(db, field.venue_id)
+    notification_crud.notify_new_booking(
+        db, booking, field, venue,
+        customer_name=payload.customer_name or current_user.full_name,
+    )
+
     return booking
 
 
@@ -181,7 +188,17 @@ def pay_deposit(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Rezervarea nu mai e in asteptarea platii (status: {booking.status.value})",
         )
-    return booking_crud.pay_deposit(db, booking)
+    booking = booking_crud.pay_deposit(db, booking)
+
+    # Inbox: confirmarea ajunge la client si la adminul bazei.
+    field = field_crud.get_field_by_id(db, booking.field_id)
+    venue = venue_crud.get_by_id(db, field.venue_id)
+    notification_crud.notify_booking_confirmed(
+        db, booking, field, venue,
+        customer_name=booking.customer_name or current_user.full_name,
+    )
+
+    return booking
 
 
 @router.post(
@@ -214,4 +231,11 @@ def cancel_booking(
             detail=f"Anularea nu mai e posibila cu mai putin de {booking_crud.CANCELLATION_CUTOFF_HOURS}h inainte de ora rezervata.",
         )
 
-    return booking_crud.cancel_booking(db, booking, cancelled_by_id=current_user.id)
+    booking = booking_crud.cancel_booking(db, booking, cancelled_by_id=current_user.id)
+
+    # Inbox: anularea anunta partea cealalta (client <-> admin de baza).
+    field = field_crud.get_field_by_id(db, booking.field_id)
+    venue = venue_crud.get_by_id(db, field.venue_id)
+    notification_crud.notify_booking_cancelled(db, booking, field, venue, cancelled_by=current_user)
+
+    return booking

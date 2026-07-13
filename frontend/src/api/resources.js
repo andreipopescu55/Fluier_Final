@@ -186,6 +186,38 @@ export function cancelMatch(matchId) {
   return api.delete(`/matches/${matchId}`).then((r) => r.data)
 }
 
+// ── Profil (contul curent) ───────────────────────────────────────
+export function updateProfile(payload) {
+  return api.patch('/auth/me', payload).then((r) => r.data)
+}
+
+export function changePassword(currentPassword, newPassword) {
+  return api
+    .post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    .then((r) => r.data)
+}
+
+// ── Notificari (inbox, orice rol autentificat) ───────────────────
+export function listNotifications(params) {
+  return api.get('/notifications', { params }).then((r) => r.data)
+}
+
+// Doar numarul de necitite — pentru badge-ul de pe clopotel (polling usor).
+export function getUnreadCount() {
+  return api.get('/notifications/unread-count').then((r) => r.data)
+}
+
+export function markNotificationRead(notificationId) {
+  return api.post(`/notifications/${notificationId}/read`).then((r) => r.data)
+}
+
+export function markAllNotificationsRead() {
+  return api.post('/notifications/read-all').then((r) => r.data)
+}
+
 // ── Admin: calendar + blocare manuala ────────────────────────────
 // from/to = string-uri ISO locale "YYYY-MM-DDTHH:MM:SS" (backend le citeste ca ora Bucuresti).
 export function getFieldCalendar(fieldId, from, to) {
