@@ -4,8 +4,9 @@ import {
   getMatch, joinMatch, leaveMatch, approveParticipant, rejectParticipant, cancelMatch,
 } from '../api/resources'
 import { useAuth } from '../auth/AuthContext'
-import { SKILL_LABELS, MATCH_STATUS, PARTICIPANT_STATUS, sportLabel } from '../lib/labels'
+import { SKILL_LABELS, MATCH_STATUS, MATCH_EXPIRED, isMatchExpired, sportLabel } from '../lib/labels'
 import { Skeleton } from '../components/ui/Skeleton'
+import MatchChat from '../components/MatchChat'
 import {
   UsersIcon, MapPinIcon, ClockIcon, ArrowLeftIcon, CheckIcon, CloseIcon,
 } from '../components/ui/icons'
@@ -59,6 +60,34 @@ export default function MatchDetailPage() {
     }
   }, [id])
 
+  // Starea meciului se schimba si din actiunile ALTORA (organizatorul te
+  // accepta, cineva intra/iese, meciul se umple) -> reimprospatam periodic,
+  // fara refresh manual. Se opreste cand nu mai are ce sa se schimbe
+  // (meci anulat / inceput) si face pauza cat timp tab-ul e ascuns.
+  const shouldPoll =
+    match !== null &&
+    match.status !== 'cancelled' &&
+    new Date(match.start_time) > new Date()
+  useEffect(() => {
+    if (!shouldPoll) return
+    function refresh() {
+      if (document.visibilityState === 'hidden') return
+      getMatch(id)
+        .then(setMatch)
+        .catch(() => {}) // un tick esuat nu strica pagina; urmatorul corecteaza
+    }
+    const t = setInterval(refresh, 5000)
+    // La revenirea pe tab, sincronizam imediat (nu asteptam urmatorul tick).
+    function onVisible() {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [id, shouldPoll])
+
   // Orice actiune intoarce meciul actualizat -> il punem direct in state.
   async function run(fn) {
     setActionError(null)
@@ -94,8 +123,12 @@ export default function MatchDetailPage() {
   if (error) return <p className="text-red-400">{error}</p>
   if (!match) return null
 
-  const st = MATCH_STATUS[match.status] ?? { label: match.status, cls: 'bg-panel-2 text-slate-400' }
   const isPast = new Date(match.start_time) <= new Date()
+  const isOver = new Date(match.end_time) <= new Date()
+  const expired = isMatchExpired(match) // deschis/complet, dar timpul a trecut
+  const st = expired
+    ? MATCH_EXPIRED
+    : MATCH_STATUS[match.status] ?? { label: match.status, cls: 'bg-panel-2 text-slate-400' }
   const isVenueAdmin = user?.role === 'venue_admin'
   const canJoin = !match.is_organizer && match.status === 'open' && !isPast
 
@@ -168,7 +201,25 @@ export default function MatchDetailPage() {
             </p>
           )}
 
-          {/* Zona de actiune (jucator) */}
+          {/* Meciul a ramas in urma timpului: mesaj clar in locul butoanelor. */}
+          {expired && (
+            <div className="mt-5 flex items-start gap-3 rounded-xl bg-amber-400/10 px-4 py-3 ring-1 ring-amber-400/25">
+              <ClockIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+              <div>
+                <p className="text-sm font-bold text-amber-300">
+                  Acest meci nu mai este valabil
+                </p>
+                <p className="mt-0.5 text-sm text-amber-200/80">
+                  {isOver
+                    ? 'Intervalul rezervării a trecut, iar meciul s-a încheiat. Caută un meci viitor în lista de meciuri deschise.'
+                    : 'Meciul a început deja — nu se mai primesc cereri de alăturare.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Zona de actiune (jucator) — dispare cand meciul a expirat */}
+          {!expired && (
           <div className="mt-5">
             {!user ? (
               <Link
@@ -230,16 +281,15 @@ export default function MatchDetailPage() {
                 {match.my_status === 'rejected' ? 'Cere din nou' : 'Cere să te alături'}
               </button>
             ) : (
-              <span className="text-sm font-semibold text-slate-400">
-                {isPast ? 'Meciul a trecut' : 'Meci complet'}
-              </span>
+              <span className="text-sm font-semibold text-slate-400">Meci complet</span>
             )}
           </div>
+          )}
         </div>
       </section>
 
-      {/* Cereri in asteptare (doar organizator) */}
-      {match.is_organizer && match.pending_requests.length > 0 && (
+      {/* Cereri in asteptare (doar organizator; fara rost dupa expirare) */}
+      {match.is_organizer && !expired && match.pending_requests.length > 0 && (
         <section className="rounded-2xl bg-panel p-6 ring-1 ring-line">
           <h2 className="mb-4 text-base font-bold text-white">
             Cereri în așteptare
@@ -308,8 +358,9 @@ export default function MatchDetailPage() {
                 <Avatar name={p.full_name} />
                 <span className="font-semibold text-white">{p.full_name}</span>
               </div>
-              {/* Organizatorul poate scoate un jucator aprobat -> elibereaza locul. */}
-              {match.is_organizer && match.status !== 'cancelled' && (
+              {/* Organizatorul poate scoate un jucator aprobat -> elibereaza locul.
+                  Dupa expirare echipa ramane doar istoric — fara modificari. */}
+              {match.is_organizer && match.status !== 'cancelled' && !expired && (
                 <button
                   type="button"
                   onClick={() => setRemoveTarget(p)}
@@ -337,6 +388,16 @@ export default function MatchDetailPage() {
             ))}
         </ul>
       </section>
+
+      {/* Conversatia echipei — privata: doar organizator + jucatori aprobati.
+          Ramane vizibila (read-only) si dupa ce meciul expira / e anulat. */}
+      {user && (match.is_organizer || match.my_status === 'approved') && (
+        <MatchChat
+          matchId={match.id}
+          currentUserId={user.id}
+          readOnly={expired || match.status === 'cancelled'}
+        />
+      )}
 
       {/* Confirmare scoatere jucator */}
       {removeTarget && (

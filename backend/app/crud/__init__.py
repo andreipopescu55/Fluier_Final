@@ -7,3 +7,4 @@ from app.crud import subscription as subscription_crud  # noqa: F401
 from app.crud import match as match_crud  # noqa: F401
 from app.crud import rating as rating_crud  # noqa: F401
 from app.crud import notification as notification_crud  # noqa: F401
+from app.crud import match_message as match_message_crud  # noqa: F401

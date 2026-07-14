@@ -2,11 +2,12 @@
 Endpointuri de autentificare: register, login (email + parola), me.
 Google OAuth e separat (vezi auth_google.py — adaugat in Pasul 4).
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
+from app.core import rate_limit
 from app.core.security import create_access_token, verify_password, hash_password
 from app.crud import user_crud
 from app.models.user import User
@@ -45,12 +46,27 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
     summary="Login cu email + parola, returneaza JWT",
 )
 def login(
+    request: Request,
     # OAuth2PasswordRequestForm citeste din application/x-www-form-urlencoded
     # cu campurile "username" si "password". E standardul OAuth2 pe care il
     # foloseste Swagger UI cand apesi "Authorize".
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ) -> Token:
+    # Rate limiting (Redis): dupa 5 incercari esuate pe aceeasi combinatie
+    # IP + email, blocam login-ul pana expira fereastra — anti brute-force.
+    client_ip = request.client.host if request.client else "necunoscut"
+    wait = rate_limit.seconds_until_retry(client_ip, form.username)
+    if wait > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Prea multe încercări eșuate. "
+                f"Încearcă din nou peste {max(wait // 60, 1)} minute."
+            ),
+            headers={"Retry-After": str(wait)},
+        )
+
     user = user_crud.get_by_email(db, form.username)
 
     # Acelasi mesaj generic pentru "user inexistent" si "parola gresita":
@@ -62,14 +78,20 @@ def login(
 
     if user is None or user.password_hash is None:
         # password_hash=None inseamna ca userul s-a inregistrat doar via OAuth
+        rate_limit.register_failure(client_ip, form.username)
         raise auth_error
     if not verify_password(form.password, user.password_hash):
+        rate_limit.register_failure(client_ip, form.username)
         raise auth_error
     if not user.is_active:
+        # Parola era corecta — nu e brute-force, nu numaram incercarea.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cont dezactivat",
         )
+
+    # Login reusit -> incercarile esuate anterioare se uita.
+    rate_limit.reset(client_ip, form.username)
 
     token = create_access_token(user_id=user.id, role=user.role)
     return Token(access_token=token)

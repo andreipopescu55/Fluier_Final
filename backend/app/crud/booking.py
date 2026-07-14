@@ -14,7 +14,7 @@ from typing import Optional, Sequence
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking
@@ -203,6 +203,18 @@ def create_booking(
                 "Intervalul este deja rezervat pentru acest teren"
             ) from exc
         raise  # alta eroare de integritate — o lasam sa urce
+    except OperationalError as exc:
+        # Caz-limita real, gasit de testul de concurenta: doua INSERT-uri
+        # conflictuale PERFECT simultane se pot astepta reciproc pe indexul
+        # EXCLUDE -> PostgreSQL detecteaza deadlock si omoara una din
+        # tranzactii. Pentru cel omorat inseamna acelasi lucru ca IntegrityError:
+        # slotul e disputat si rezervarea LUI nu s-a facut -> tot conflict (409).
+        db.rollback()
+        if "deadlock detected" in str(getattr(exc, "orig", exc)).lower():
+            raise BookingConflictError(
+                "Intervalul este deja rezervat pentru acest teren"
+            ) from exc
+        raise
     db.refresh(booking)
     return booking
 

@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy import (
-    Text, Integer, Numeric, CheckConstraint, UniqueConstraint,
+    Text, Integer, Numeric, CheckConstraint, UniqueConstraint, Index,
     Enum as SAEnum, text, ForeignKey, Uuid,
 )
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -122,3 +122,44 @@ class MatchParticipant(Base):
     # Relationships
     match: Mapped["Match"] = relationship("Match", back_populates="participants")
     user: Mapped["User"] = relationship("User")
+
+
+class MatchMessage(Base):
+    """
+    Un mesaj in conversatia (chat-ul) echipei unui meci.
+
+    user_id NULL = mesaj de SISTEM (generat automat la evenimente: un jucator
+    a intrat/iesit, meciul e complet/anulat) — chatul devine si cronologia
+    meciului. Accesul e verificat la nivel de endpoint: doar organizatorul si
+    participantii 'approved' vad conversatia.
+    """
+    __tablename__ = "match_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    match_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("matches.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # Nullable: mesajele de sistem nu au autor uman.
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        # Interogarea dominanta: mesajele unui meci, in ordine cronologica.
+        Index("idx_match_messages_match_created", "match_id", "created_at"),
+    )
+
+    # Relationships
+    match: Mapped["Match"] = relationship("Match")
+    user: Mapped[Optional["User"]] = relationship("User")

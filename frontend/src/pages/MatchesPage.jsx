@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listMatches, listMyMatches } from '../api/resources'
 import { useAuth } from '../auth/AuthContext'
-import { SKILL_LABELS, MATCH_STATUS, PARTICIPANT_STATUS, sportLabel, SPORT_LABELS } from '../lib/labels'
+import { SKILL_LABELS, MATCH_STATUS, MATCH_EXPIRED, isMatchExpired, PARTICIPANT_STATUS, sportLabel, SPORT_LABELS } from '../lib/labels'
 import { VenueGridSkeleton } from '../components/ui/Skeleton'
 import EmptyState from '../components/ui/EmptyState'
 import { UsersIcon, MapPinIcon, ClockIcon, ArrowRightIcon } from '../components/ui/icons'
@@ -33,7 +33,10 @@ function SpotsBar({ taken, total }) {
 }
 
 export function MatchCard({ m }) {
-  const st = MATCH_STATUS[m.status] ?? { label: m.status, cls: 'bg-panel-2 text-slate-400' }
+  // In "Meciurile mele" apar si meciuri trecute — le etichetam "Expirat".
+  const st = isMatchExpired(m)
+    ? MATCH_EXPIRED
+    : MATCH_STATUS[m.status] ?? { label: m.status, cls: 'bg-panel-2 text-slate-400' }
   const mine = m.my_status ? PARTICIPANT_STATUS[m.my_status] : null
   return (
     <Link

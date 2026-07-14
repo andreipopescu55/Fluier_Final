@@ -12,6 +12,10 @@ Flux:
   POST   /matches/{id}/participants/{uid}/approve -> organizatorul aproba (sigur la concurenta)
   POST   /matches/{id}/participants/{uid}/reject  -> organizatorul respinge / scoate
   DELETE /matches/{id}                  -> organizatorul anuleaza
+
+Chat de meci (conversatia echipei — DOAR organizator + jucatori aprobati):
+  GET  /matches/{id}/messages?after=&limit= -> mesaje (incremental, keyset)
+  POST /matches/{id}/messages                -> trimite un mesaj (read-only dupa start/anulare)
 """
 import uuid
 from datetime import datetime, timezone, date
@@ -21,14 +25,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, get_current_user_optional
-from app.crud import booking_crud, match_crud, notification_crud
+from app.crud import booking_crud, match_crud, notification_crud, match_message_crud
 from app.crud.match import (
     MatchError, MatchFullError, AlreadyParticipantError, NotParticipantError,
 )
 from app.models.user import User
-from app.models.match import Match
+from app.models.match import Match, MatchMessage
 from app.models.enums import MatchStatus, MatchSkillLevel, ParticipantStatus, BookingStatus
-from app.schemas.match import MatchCreate, MatchListItem, MatchDetail, ParticipantOut
+from app.schemas.match import (
+    MatchCreate, MatchListItem, MatchDetail, ParticipantOut,
+    MatchMessageCreate, MatchMessageOut,
+)
 
 
 router = APIRouter(prefix="/matches", tags=["matches"])
@@ -232,6 +239,12 @@ def leave_match(
     # Inbox: organizatorul afla ca cineva a iesit / si-a retras cererea.
     notification_crud.notify_player_left(db, match, player=current_user, was_approved=was_approved)
 
+    # Chat: doar iesirile din ECHIPA sunt stiri pentru toti (cererile retrase nu).
+    if was_approved:
+        match_message_crud.add_system_message(
+            db, match_id, f"{current_user.full_name} a ieșit din meci — s-a eliberat un loc."
+        )
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
 
 
@@ -265,7 +278,19 @@ def approve(
     # Inbox: jucatorul afla ca a fost acceptat.
     notification_crud.notify_request_approved(db, match, player_id=participant_user_id)
 
-    return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
+    # Chat: cronologia echipei — cine a intrat + daca s-a umplut meciul.
+    fresh = match_crud.get_match_by_id(db, match_id)
+    joined = next((p for p in fresh.participants if p.user_id == participant_user_id), None)
+    if joined is not None and joined.user is not None:
+        match_message_crud.add_system_message(
+            db, match_id, f"{joined.user.full_name} s-a alăturat echipei."
+        )
+    if fresh.status == MatchStatus.FULL:
+        match_message_crud.add_system_message(
+            db, match_id, "Echipa este completă — toate locurile sunt ocupate."
+        )
+
+    return _to_detail(fresh, current_user)
 
 
 @router.post("/{match_id}/participants/{participant_user_id}/reject",
@@ -293,6 +318,12 @@ def reject(
         db, match, player_id=participant_user_id, was_approved=was_approved
     )
 
+    # Chat: doar scoaterea din ECHIPA e stire pentru toti (respingerea unei cereri nu).
+    if was_approved and target is not None and target.user is not None:
+        match_message_crud.add_system_message(
+            db, match_id, f"{target.user.full_name} a fost scos din echipă."
+        )
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
 
 
@@ -316,4 +347,74 @@ def cancel(
     # Inbox: jucatorii afla ca meciul a fost anulat.
     notification_crud.notify_match_cancelled(db, match, participant_ids=affected_ids)
 
+    # Chat: nota finala in cronologie (conversatia devine doar-citire).
+    match_message_crud.add_system_message(
+        db, match_id, "Meciul a fost anulat de organizator."
+    )
+
     return _to_detail(match_crud.get_match_by_id(db, match_id), current_user)
+
+
+# ── Chat de meci (conversatia echipei) ────────────────────────────────────────────
+def _get_chat_match(match_id: uuid.UUID, current_user: User, db: Session) -> Match:
+    """Meciul exista + userul e membru al conversatiei (organizator / aprobat)."""
+    match = match_crud.get_match_by_id(db, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Meci inexistent")
+    if not match_message_crud.is_chat_member(match, current_user.id):
+        raise HTTPException(
+            status_code=403,
+            detail="Conversația e disponibilă doar organizatorului și jucătorilor din echipă",
+        )
+    return match
+
+
+def _message_out(m: MatchMessage) -> MatchMessageOut:
+    return MatchMessageOut(
+        id=m.id,
+        user_id=m.user_id,
+        author_name=m.user.full_name if m.user is not None else "Sistem",
+        is_system=m.user_id is None,
+        body=m.body,
+        created_at=m.created_at,
+    )
+
+
+@router.get("/{match_id}/messages", response_model=list[MatchMessageOut],
+            summary="Mesajele conversatiei (incremental cu ?after=)")
+def list_match_messages(
+    match_id: uuid.UUID,
+    after: Optional[uuid.UUID] = Query(None, description="Id-ul ultimului mesaj vazut — intoarce doar ce e mai nou"),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    match = _get_chat_match(match_id, current_user, db)
+    messages = match_message_crud.list_messages(db, match.id, after_id=after, limit=limit)
+    return [_message_out(m) for m in messages]
+
+
+@router.post("/{match_id}/messages", response_model=MatchMessageOut,
+             status_code=status.HTTP_201_CREATED, summary="Trimite un mesaj in conversatie")
+def send_match_message(
+    match_id: uuid.UUID,
+    payload: MatchMessageCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    match = _get_chat_match(match_id, current_user, db)
+
+    # Conversatia e doar-citire dupa ce meciul nu mai e valabil.
+    if match.status == MatchStatus.CANCELLED:
+        raise HTTPException(status_code=409, detail="Meciul a fost anulat — conversația s-a închis")
+    if match.booking.start_time <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=409, detail="Meciul nu mai este valabil — conversația s-a închis")
+
+    body = payload.body.strip()
+    if not body:
+        raise HTTPException(status_code=422, detail="Mesajul nu poate fi gol")
+
+    msg = match_message_crud.create_message(
+        db, match_id=match.id, user_id=current_user.id, body=body
+    )
+    return _message_out(msg)

@@ -42,6 +42,9 @@ export default function LoginPage() {
         setError('Email sau parolă incorecte.')
       } else if (status === 403) {
         setError('Contul este dezactivat.')
+      } else if (status === 429) {
+        // Rate limiting: serverul spune si cat mai ai de asteptat.
+        setError(err.response?.data?.detail ?? 'Prea multe încercări. Așteaptă câteva minute.')
       } else {
         setError('A apărut o eroare. Încearcă din nou.')
       }

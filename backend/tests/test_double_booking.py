@@ -13,7 +13,7 @@ import threading
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.db.session import SessionLocal
 from app.models.booking import Booking
@@ -48,7 +48,17 @@ def test_concurrent_double_booking_only_one_succeeds(test_field):
             with results_lock:
                 results.append("ok")
         except IntegrityError:
+            # Cazul obisnuit: EXCLUDE respinge al doilea INSERT.
             session.rollback()
+            with results_lock:
+                results.append("conflict")
+        except OperationalError as exc:
+            # Cazul PERFECT simultan: cele doua INSERT-uri se asteapta reciproc
+            # pe indexul EXCLUDE si PostgreSQL rezolva prin deadlock detection,
+            # omorand una din tranzactii. Pentru cea omorata rezultatul e
+            # acelasi: rezervarea EI nu s-a facut -> tot "conflict".
+            session.rollback()
+            assert "deadlock detected" in str(getattr(exc, "orig", exc)).lower()
             with results_lock:
                 results.append("conflict")
         finally:

@@ -186,6 +186,18 @@ export function cancelMatch(matchId) {
   return api.delete(`/matches/${matchId}`).then((r) => r.data)
 }
 
+// ── Chat de meci (doar organizator + jucatori aprobati) ──────────
+// `after` = id-ul ultimului mesaj vazut -> serverul intoarce doar ce e mai nou.
+export function listMatchMessages(matchId, after) {
+  return api
+    .get(`/matches/${matchId}/messages`, { params: after ? { after } : {} })
+    .then((r) => r.data)
+}
+
+export function sendMatchMessage(matchId, body) {
+  return api.post(`/matches/${matchId}/messages`, { body }).then((r) => r.data)
+}
+
 // ── Profil (contul curent) ───────────────────────────────────────
 export function updateProfile(payload) {
   return api.patch('/auth/me', payload).then((r) => r.data)

@@ -57,3 +57,19 @@ class MatchDetail(MatchListItem):
     field_id: uuid.UUID
     participants: List[ParticipantOut] = []      # roster aprobat (vizibil tuturor)
     pending_requests: List[ParticipantOut] = []  # cereri in asteptare (doar pentru organizator)
+
+
+# ── Chat de meci ────────────────────────────────────────────────────────────────
+class MatchMessageCreate(BaseModel):
+    body: str = Field(..., min_length=1, max_length=500)
+
+
+class MatchMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    user_id: Optional[uuid.UUID]     # None = mesaj de sistem
+    author_name: str                 # "Sistem" pentru mesajele automate
+    is_system: bool
+    body: str
+    created_at: datetime

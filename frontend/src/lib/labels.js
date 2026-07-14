@@ -53,6 +53,18 @@ export const MATCH_STATUS = {
   completed: { label: 'Încheiat', cls: 'bg-blue-500/10 text-blue-300' },
 }
 
+// Pseudo-status derivat pe frontend: meciul nu e anulat, dar timpul rezervarii
+// a trecut (in DB statusul ramane open/full — nu ruleaza un scheduler care sa-l inchida).
+export const MATCH_EXPIRED = { label: 'Expirat', cls: 'bg-panel-2 text-slate-400' }
+
+// True daca meciul e deschis/complet dar intervalul lui a inceput deja.
+export function isMatchExpired(m) {
+  return (
+    (m.status === 'open' || m.status === 'full') &&
+    new Date(m.start_time) <= new Date()
+  )
+}
+
 export const PARTICIPANT_STATUS = {
   requested: { label: 'Cerere trimisă', cls: 'bg-amber-400/15 text-amber-300' },
   approved: { label: 'Acceptat', cls: 'bg-accent-400/15 text-accent-400' },
